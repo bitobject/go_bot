@@ -1,37 +1,48 @@
-# Build stage
+# --- Этап 1: Сборщик (Builder) ---
+# Используем конкретную версию Go на базе Alpine для консистентности и малого размера.
 FROM golang:1.21-alpine AS builder
 
-# Install git and ca-certificates (needed for go mod download)
-RUN apk add --no-cache git ca-certificates
+# Устанавливаем рабочую директорию.
+WORKDIR /src
 
-# Set working directory
-WORKDIR /app
-
-# Copy go mod files
+# 1. КОПИРУЕМ ТОЛЬКО ФАЙЛЫ ЗАВИСИМОСТЕЙ
+# Этот слой кэшируется и пересобирается только при изменении go.mod или go.sum.
 COPY go.mod go.sum ./
 
-# Download dependencies
+# 2. СКАЧИВАЕМ ЗАВИСИМОСТИ
+# Этот шаг занимает много времени, но теперь он будет кэшироваться.
 RUN go mod download
 
-# Copy source code
+# 3. КОПИРУЕМ ВЕСЬ ОСТАЛЬНОЙ ИСХОДНЫЙ КОД
+# Этот слой будет пересобираться при каждом изменении вашего кода, но предыдущий останется в кэше.
 COPY . .
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/bot
+# 4. СОБИРАЕМ ПРИЛОЖЕНИЕ С ОПТИМИЗАЦИЯМИ
+#   - CGO_ENABLED=0: Создает статически скомпилированный бинарник без C-зависимостей.
+#   - -ldflags="-w -s": Удаляет отладочную информацию, значительно уменьшая размер бинарника.
+#   - Убран флаг "-a", который принудительно пересобирал всё, игнорируя кэш.
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /bin/app ./cmd/bot
 
-# Final stage
-FROM alpine:latest
 
-# Install ca-certificates for HTTPS requests
-RUN apk --no-cache add ca-certificates
+# --- Этап 2: Финальный образ ---
+# Используем один из самых минималистичных образов. "scratch" - это пустой образ без ОС.
+# Если вашему приложению нужны CA-сертификаты для HTTPS-запросов, используйте "gcr.io/distroless/static" или "alpine".
+FROM scratch
 
-WORKDIR /root/
+# Копируем только скомпилированное приложение из этапа сборщика.
+COPY --from=builder /bin/app /app
 
-# Copy the binary from builder stage
-COPY --from=builder /app/main .
+# (Опционально, но рекомендуется) Копируем CA-сертификаты, если они нужны
+# COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
-# Expose port (if needed for health checks)
+# Создаем непривилегированного пользователя.
+# Хотя в 'scratch' нет оболочки для создания пользователя, мы можем указать UID/GID.
+# Если вы используете 'alpine', то сначала нужно создать пользователя:
+# RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+# USER appuser
+
+# Указываем, какой порт слушает приложение (только для информации, не открывает порт).
 EXPOSE 8080
 
-# Run the application
-CMD ["./main"] 
+# Команда для запуска нашего скомпилированного приложения.
+ENTRYPOINT ["/app"]
