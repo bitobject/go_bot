@@ -14,7 +14,7 @@ func Start(bot *tgbotapi.BotAPI, db *gorm.DB) {
 	setupWebhook(bot)
 	
 	// Start HTTP server for webhook
-	http.HandleFunc("/webhook", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/api/webhook", func(w http.ResponseWriter, r *http.Request) {
 		handleWebhook(w, r, bot, db)
 	})
 	
@@ -36,7 +36,7 @@ func Start(bot *tgbotapi.BotAPI, db *gorm.DB) {
 }
 
 func setupWebhook(bot *tgbotapi.BotAPI) {
-	webhookURL := "https://body-architect.ru/webhook"
+	webhookURL := "https://body-architect.ru/api/webhook"
 	
 	// Delete existing webhook first
 	_, err := bot.Request(tgbotapi.DeleteWebhookConfig{})
@@ -93,9 +93,29 @@ func handleMessage(message *tgbotapi.Message, bot *tgbotapi.BotAPI, db *gorm.DB)
 	// Save message to database
 	saveMessage(message, db)
 	
-	// Send response
+	// Handle commands
+	if message.IsCommand() {
+		handleCommand(message, bot, db)
+		return
+	}
+	
+	// Handle regular messages
 	msg := tgbotapi.NewMessage(message.Chat.ID, "Привет! Я бот с webhook.")
 	bot.Send(msg)
+}
+
+func handleCommand(message *tgbotapi.Message, bot *tgbotapi.BotAPI, db *gorm.DB) {
+	switch message.Command() {
+	case "start":
+		msg := tgbotapi.NewMessage(message.Chat.ID, "Привет! Я бот. Используй /help для получения справки.")
+		bot.Send(msg)
+	case "help":
+		msg := tgbotapi.NewMessage(message.Chat.ID, "Доступные команды:\n/start - Начать работу с ботом\n/help - Показать справку")
+		bot.Send(msg)
+	default:
+		msg := tgbotapi.NewMessage(message.Chat.ID, "Неизвестная команда. Используй /help для получения справки.")
+		bot.Send(msg)
+	}
 }
 
 func handleCallbackQuery(callback *tgbotapi.CallbackQuery, bot *tgbotapi.BotAPI, db *gorm.DB) {
