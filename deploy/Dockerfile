@@ -25,15 +25,18 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /bin/app ./cmd/bot
 
 
 # --- Этап 2: Финальный образ ---
-# Используем один из самых минималистичных образов. "scratch" - это пустой образ без ОС.
-# Если вашему приложению нужны CA-сертификаты для HTTPS-запросов, используйте "gcr.io/distroless/static" или "alpine".
+# Используем scratch для минимального размера
 FROM scratch
 
 # Копируем только скомпилированное приложение из этапа сборщика.
 COPY --from=builder /bin/app /app
 
-# (Опционально, но рекомендуется) Копируем CA-сертификаты, если они нужны
-# COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+# Копируем CA-сертификаты для HTTPS-запросов
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+
+# Устанавливаем переменные окружения для Go, чтобы он знал где искать CA сертификаты
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+ENV SSL_CERT_DIR=/etc/ssl/certs
 
 # Создаем непривилегированного пользователя.
 # Хотя в 'scratch' нет оболочки для создания пользователя, мы можем указать UID/GID.

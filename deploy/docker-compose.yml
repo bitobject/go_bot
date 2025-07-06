@@ -32,7 +32,7 @@ services:
     env_file:
       - .env
     volumes:
-      - ./.env:/app/.env:ro
+      - ./.env:/root/.env:ro
     depends_on:
       postgres:
         condition: service_healthy
