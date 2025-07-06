@@ -41,4 +41,27 @@ $$ language 'plpgsql';
 CREATE TRIGGER update_users_updated_at 
     BEFORE UPDATE ON users 
     FOR EACH ROW 
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Create admins table with security best practices
+CREATE TABLE IF NOT EXISTS admins (
+    id SERIAL PRIMARY KEY,
+    login CITEXT UNIQUE NOT NULL,
+    hashed_password VARCHAR(255) NOT NULL,
+    is_active BOOLEAN DEFAULT true,
+    last_login_at TIMESTAMP WITH TIME ZONE,
+    failed_login_attempts INTEGER DEFAULT 0,
+    locked_until TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create indexes for admins table
+CREATE INDEX IF NOT EXISTS idx_admins_login ON admins(login);
+CREATE INDEX IF NOT EXISTS idx_admins_is_active ON admins(is_active);
+
+-- Create trigger for admins table
+CREATE TRIGGER update_admins_updated_at 
+    BEFORE UPDATE ON admins 
+    FOR EACH ROW 
     EXECUTE FUNCTION update_updated_at_column(); 

@@ -1,18 +1,25 @@
 package database
 
 import (
+	"goooo/internal/config"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"os"
 	"log"
 )
 
 func Init() *gorm.DB {
-	dsn := os.Getenv("DATABASE_URL")
+	dsn := config.AppConfig.DatabaseURL
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Panic("failed to connect database:", err)
 	}
+
+	// Auto migrate models
+	err = db.AutoMigrate(&User{}, &Message{}, &Admin{})
+	if err != nil {
+		log.Panic("failed to migrate database:", err)
+	}
+
 	return db
 }
 

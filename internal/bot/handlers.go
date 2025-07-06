@@ -1,41 +1,13 @@
 package bot
 
 import (
-	"encoding/json"
 	"log"
-	"net/http"
-	"os"
 	"gorm.io/gorm"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-func Start(bot *tgbotapi.BotAPI, db *gorm.DB) {
-	// Setup webhook
-	setupWebhook(bot)
-	
-	// Start HTTP server for webhook
-	http.HandleFunc("/api/webhook", func(w http.ResponseWriter, r *http.Request) {
-		handleWebhook(w, r, bot, db)
-	})
-	
-	// Health check endpoint
-	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("healthy"))
-	})
-	
-	port := os.Getenv("APP_PORT")
-	if port == "" {
-		port = "8080"
-	}
-	
-	log.Printf("Starting webhook server on port %s", port)
-	if err := http.ListenAndServe(":"+port, nil); err != nil {
-		log.Panic(err)
-	}
-}
-
-func setupWebhook(bot *tgbotapi.BotAPI) {
+// SetupWebhook настраивает webhook для Telegram бота
+func SetupWebhook(bot *tgbotapi.BotAPI) {
 	webhookURL := "https://body-architect.ru/api/webhook"
 	
 	// Delete existing webhook first
@@ -56,26 +28,8 @@ func setupWebhook(bot *tgbotapi.BotAPI) {
 	}
 }
 
-func handleWebhook(w http.ResponseWriter, r *http.Request, bot *tgbotapi.BotAPI, db *gorm.DB) {
-	if r.Method != "POST" {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	
-	var update tgbotapi.Update
-	if err := json.NewDecoder(r.Body).Decode(&update); err != nil {
-		log.Printf("Error decoding update: %v", err)
-		http.Error(w, "Bad request", http.StatusBadRequest)
-		return
-	}
-	
-	// Process the update
-	processUpdate(update, bot, db)
-	
-	w.WriteHeader(http.StatusOK)
-}
-
-func processUpdate(update tgbotapi.Update, bot *tgbotapi.BotAPI, db *gorm.DB) {
+// ProcessUpdate обрабатывает входящие update от Telegram
+func ProcessUpdate(update tgbotapi.Update, bot *tgbotapi.BotAPI, db *gorm.DB) {
 	if update.Message != nil {
 		handleMessage(update.Message, bot, db)
 	}

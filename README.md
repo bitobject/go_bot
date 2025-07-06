@@ -1,195 +1,188 @@
-# Goooo Telegram Bot
+# Goooo Bot
 
-Telegram bot built with Go, PostgreSQL, and Docker Compose.
+Telegram бот с админ-панелью, построенный на Go с использованием лучших практик для production.
 
-## Features
+## Архитектура
 
-- Telegram bot that responds with greetings
-- PostgreSQL database for data persistence
-- Nginx reverse proxy with security headers
-- Docker Compose for easy deployment
-- Health checks for all services
+- **Gin** - HTTP фреймворк
+- **GORM** - ORM для PostgreSQL
+- **JWT** - аутентификация администраторов
+- **Rate Limiting** - защита от перебора
+- **Structured Logging** - структурированное логирование
+- **Graceful Shutdown** - корректное завершение
 
-## Prerequisites
+## Быстрый старт
 
-- Docker and Docker Compose installed
-- Telegram Bot Token (get from [@BotFather](https://t.me/BotFather))
-
-## Quick Start
-
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd goooo
-   ```
-
-2. **Set up environment variables**
-   ```bash
-   cp .env.example .env
-   # Edit .env and add your TELEGRAM_TOKEN
-   ```
-
-3. **Start all services**
-   ```bash
-   make up
-   # or
-   docker-compose up -d
-   ```
-
-4. **Check status**
-   ```bash
-   make status
-   # or
-   docker-compose ps
-   ```
-
-## Project Structure
-
-```
-goooo/
-├── cmd/bot/main.go          # Application entry point
-├── internal/
-│   ├── bot/handlers.go      # Telegram bot handlers
-│   ├── config/config.go     # Configuration management
-│   └── database/postgres.go # Database connection
-├── nginx/
-│   ├── nginx.conf          # Main nginx configuration
-│   └── conf.d/default.conf # Server configuration
-├── docker-compose.yml      # Docker Compose services
-├── Dockerfile             # Go application container
-├── init.sql              # Database initialization
-├── Makefile              # Development commands
-└── README.md             # This file
-```
-
-## Services
-
-### App (Go Telegram Bot)
-- **Port**: 8080 (internal)
-- **Health Check**: `http://localhost:8080/health`
-- **Environment**: TELEGRAM_TOKEN, DATABASE_URL
-
-### PostgreSQL
-- **Port**: 5432
-- **Database**: goooo
-- **User**: goooo_user
-- **Password**: goooo_password
-- **Health Check**: pg_isready
-
-### Nginx
-- **Ports**: 80, 443
-- **Features**: Reverse proxy, security headers, rate limiting
-- **Health Check**: HTTP on port 80
-
-## Make Commands
+### 1. Настройка окружения
 
 ```bash
-make help      # Show all available commands
-make up        # Start all services
-make down      # Stop all services
-make logs      # Show logs from all services
-make status    # Show service status
-make clean     # Remove all containers and volumes
-make build     # Build Docker images
-make restart   # Restart all services
+# Скопируйте пример конфигурации
+cp env.example .env
 
-# Development
-make dev       # Start in development mode
-make dev-build # Build and start in development mode
-
-# Database
-make db-shell  # Connect to PostgreSQL shell
-make db-backup # Create database backup
-
-# Application
-make app-shell # Connect to app container
-
-# Nginx
-make nginx-reload # Reload nginx configuration
+# Отредактируйте .env файл
+nano .env
 ```
 
-## Environment Variables
+### 2. Запуск базы данных
 
-Create a `.env` file with the following variables:
-
-```env
-# Required
-TELEGRAM_TOKEN=your_telegram_token_here
-
-# Optional (used by docker-compose)
-POSTGRES_DB=goooo
-POSTGRES_USER=goooo_user
-POSTGRES_PASSWORD=goooo_password
-```
-
-## Development
-
-### Local Development
 ```bash
-# Install dependencies
+# Используя Docker Compose
+docker-compose up -d postgres
+
+# Или установите PostgreSQL локально
+```
+
+### 3. Создание первого администратора
+
+```bash
+# Создайте первого администратора
+go run scripts/create_admin.go -login=admin -password=secure_password_123
+```
+
+### 4. Запуск приложения
+
+```bash
+# Установка зависимостей
 go mod tidy
 
-# Run locally (requires PostgreSQL)
-go run ./cmd/bot/main.go
+# Запуск
+go run cmd/bot/main.go
 ```
 
-### Docker Development
+### 5. Тестирование
+
 ```bash
-# Start services
-make dev
-
-# View logs
-make logs-app
-
-# Connect to database
-make db-shell
+# Запустите тесты API
+./test_admin_login.sh
 ```
 
-## Production Deployment
+## API Endpoints
 
-1. **Set production environment variables**
-2. **Use production Docker images**
-3. **Configure SSL certificates for Nginx**
-4. **Set up monitoring and logging**
-5. **Configure backups for PostgreSQL**
+### Health Checks
+- `GET /health` - проверка здоровья сервиса
+- `GET /ready` - проверка готовности к работе
 
-## Security Features
+### Admin API
+- `POST /api/admin/login` - вход администратора
+- `GET /api/admin/profile` - профиль администратора (требует JWT)
+- `POST /api/admin/change-password` - смена пароля (требует JWT)
 
-- Nginx security headers
-- Rate limiting (10 requests/second)
-- Hidden file access denied
-- Gzip compression
-- Health checks for all services
+### Telegram
+- `POST /api/webhook` - webhook от Telegram
 
-## Troubleshooting
+## Примеры использования
 
-### Check service logs
+### Вход администратора
+
 ```bash
-make logs-app      # App logs
-make logs-postgres # Database logs
-make logs-nginx    # Nginx logs
+curl -X POST http://localhost:8080/api/admin/login \
+  -H "Content-Type: application/json" \
+  -d '{"login": "admin", "password": "secure_password_123"}'
 ```
 
-### Restart services
+### Получение профиля (с JWT токеном)
+
 ```bash
-make restart
+curl -X GET http://localhost:8080/api/admin/profile \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
-### Clean and rebuild
+### Смена пароля
+
 ```bash
-make clean
-make build
-make up
+curl -X POST http://localhost:8080/api/admin/change-password \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"current_password": "old_password", "new_password": "new_secure_password"}'
 ```
 
-## Contributing
+## Конфигурация
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+### Обязательные переменные окружения
 
-## License
+- `DATABASE_URL` - строка подключения к PostgreSQL
+- `TELEGRAM_TOKEN` - токен Telegram бота
+- `JWT_SECRET` - секретный ключ для JWT (измените в production!)
 
-MIT License 
+### Опциональные переменные
+
+- `APP_PORT` - порт сервера (по умолчанию 8080)
+- `APP_HOST` - хост сервера (по умолчанию 0.0.0.0)
+- `JWT_EXPIRATION` - время жизни JWT (по умолчанию 24h)
+- `RATE_LIMIT_REQUESTS` - лимит запросов (по умолчанию 200)
+- `RATE_LIMIT_WINDOW` - окно для rate limiting (по умолчанию 1m)
+- `LOG_LEVEL` - уровень логирования (по умолчанию info)
+
+## Безопасность
+
+### JWT
+- Использует HMAC-SHA256
+- Содержит стандартные claims (iss, aud, iat, exp, nbf)
+- Время жизни 24 часа
+- Секретный ключ из environment
+
+### Rate Limiting
+- 200 запросов в минуту на IP
+- Защита от брутфорса
+- Настраиваемые лимиты
+
+### Пароли
+- Хеширование через bcrypt (cost 12)
+- Защита от timing attacks
+- Блокировка после 5 неудачных попыток
+
+## Мониторинг
+
+### Health Checks
+- `/health` - общая проверка здоровья
+- `/ready` - проверка готовности (включает проверку БД)
+
+### Логирование
+- JSON формат для парсинга
+- Уровни: debug, info, warn, error
+- Метаданные запросов (IP, User-Agent, время ответа)
+
+## Production
+
+### Рекомендации
+1. Измените `JWT_SECRET` на уникальный секретный ключ
+2. Настройте `DATABASE_URL` для production БД
+3. Установите `LOG_LEVEL=info` или `LOG_LEVEL=warn`
+4. Настройте reverse proxy (nginx) для SSL
+5. Используйте Docker для развертывания
+
+### Docker
+
+```bash
+# Сборка
+docker build -t goooo-bot .
+
+# Запуск
+docker run -p 8080:8080 --env-file .env goooo-bot
+```
+
+## Разработка
+
+### Структура проекта
+
+```
+internal/
+├── api/              # HTTP API
+│   ├── handlers/     # Обработчики запросов
+│   ├── middleware/   # Middleware
+│   └── server.go     # Основной сервер
+├── auth/             # Аутентификация
+├── bot/              # Telegram логика
+├── config/           # Конфигурация
+└── database/         # Работа с БД
+```
+
+### Добавление новых endpoint'ов
+
+1. Создайте handler в `internal/api/handlers/`
+2. Добавьте роут в `internal/api/server.go`
+3. Добавьте middleware если нужно
+
+## Лицензия
+
+MIT 
