@@ -6,8 +6,8 @@ import (
 	"log"
 	"os"
 
-	"goooo/internal/config"
-	"goooo/internal/database"
+	"go-bot/internal/services"
+	"go-bot/internal/database"
 )
 
 func main() {
@@ -22,12 +22,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Загружаем конфигурацию
-	config.LoadEnv()
-	config.Init()
+	// Загружаем и валидируем конфигурацию. 
+	// Это необходимо, чтобы database.Init() мог получить доступ к данным для подключения.
+	cfg := config.Get()
 
 	// Инициализируем базу данных
-	db := database.Init()
+	db := database.Init(cfg)
 	defer database.Close(db)
 
 	// Создаем сервис администраторов

@@ -7,9 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"goooo/internal/auth"
-	"goooo/internal/config"
-	"goooo/internal/database"
+	"go-bot/internal/api/handlers"
+	"go-bot/internal/config"
+	"go-bot/internal/database"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -21,14 +21,14 @@ import (
 // TestServer представляет тестовый сервер
 type TestServer struct {
 	*Server
-	db *gorm.DB
+	db  *gorm.DB
+	cfg *config.Config
 }
 
 // setupTestServer создает тестовый сервер с in-memory БД
 func setupTestServer(t *testing.T) *TestServer {
 	// Загружаем конфигурацию
-	config.LoadEnv()
-	config.Init()
+	cfg := config.Get()
 
 	// Создаем in-memory БД
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -39,6 +39,7 @@ func setupTestServer(t *testing.T) *TestServer {
 	require.NoError(t, err)
 
 	// Создаем мок бота
+	// В интеграционных тестах нам не нужен реальный бот
 	bot := &tgbotapi.BotAPI{}
 
 	// Создаем сервер
@@ -47,6 +48,7 @@ func setupTestServer(t *testing.T) *TestServer {
 	return &TestServer{
 		Server: server,
 		db:     db,
+		cfg:    cfg,
 	}
 }
 
@@ -57,7 +59,8 @@ func (ts *TestServer) createTestAdmin(t *testing.T, login, password string) (*da
 	require.NoError(t, err)
 
 	// Генерируем JWT токен
-	token, err := auth.GenerateToken(admin)
+	expiresIn := time.Duration(ts.cfg.JWTExpiresIn) * time.Hour
+	token, err := auth.GenerateToken(admin, ts.cfg.JWTSecretKey, expiresIn)
 	require.NoError(t, err)
 
 	return admin, token
@@ -166,6 +169,10 @@ func TestAPI_AdminProfile_Integration(t *testing.T) {
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
+		// Проверяем, что ID администратора в токене совпадает
+		adminID, err := auth.ExtractAdminID(token, ts.cfg.JWTSecretKey)
+		require.NoError(t, err)
+		assert.Equal(t, admin.ID, adminID)
 		assert.Equal(t, float64(admin.ID), response["id"])
 		assert.Equal(t, admin.Login, response["login"])
 		assert.Equal(t, admin.IsActive, response["is_active"])
@@ -322,12 +329,13 @@ func TestAPI_RateLimiting_Integration(t *testing.T) {
 		}
 
 		// Делаем больше запросов, чем разрешено (200 в минуту)
-		// Для теста уменьшим лимит в конфигурации
-		originalLimit := config.AppConfig.RateLimitRequests
-		config.AppConfig.RateLimitRequests = 5
-
+			// Для теста временно уменьшаем лимит в конфигурации.
+		// Важно делать это на копии или с осторожностью в конкурентной среде.
+		// Здесь мы меняем значение прямо в синглтоне, что допустимо для последовательных тестов.
+		originalLimit := ts.cfg.RateLimitRequests
+		ts.cfg.RateLimitRequests = 5
 		defer func() {
-			config.AppConfig.RateLimitRequests = originalLimit
+			ts.cfg.RateLimitRequests = originalLimit
 		}()
 
 		// Делаем 6 запросов (превышаем лимит)

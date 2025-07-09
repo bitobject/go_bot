@@ -3,7 +3,8 @@ package main
 import (
 	"fmt"
 	"log"
-	"goooo/internal/database"
+	"go-bot/internal/config"
+	"go-bot/internal/database"
 )
 
 // ExampleAdminUsage demonstrates how to use the AdminService

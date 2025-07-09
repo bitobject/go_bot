@@ -3,7 +3,7 @@ package handlers
 import (
 	"log"
 
-	"goooo/internal/bot"
+	"go-bot/internal/services"
 
 	"github.com/gin-gonic/gin"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"

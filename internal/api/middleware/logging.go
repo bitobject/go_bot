@@ -1,57 +1,43 @@
 package middleware
 
 import (
+	"log/slog"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
 )
 
-// LoggerMiddleware создает структурированное логирование
-func LoggerMiddleware() gin.HandlerFunc {
-	return gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
-		// Структурированное логирование
-		logrus.WithFields(logrus.Fields{
-			"timestamp": param.TimeStamp.Format(time.RFC3339),
-			"status":    param.StatusCode,
-			"latency":   param.Latency,
-			"client_ip": param.ClientIP,
-			"method":    param.Method,
-			"path":      param.Path,
-			"user_agent": param.Request.UserAgent(),
-		}).Info("HTTP Request")
-
-		return ""
-	})
-}
-
-// RequestLogger логирует детали запроса
-func RequestLogger() gin.HandlerFunc {
+// SlogLogger is a middleware that logs requests using the slog logger from the context.
+// It logs the method, path, status, latency, and client IP of each request.
+func SlogLogger() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
-		path := c.Request.URL.Path
-		raw := c.Request.URL.RawQuery
 
 		// Process request
 		c.Next()
 
-		// Log details
 		latency := time.Since(start)
-		status := c.Writer.Status()
-		clientIP := c.ClientIP()
-		method := c.Request.Method
 
-		if raw != "" {
-			path = path + "?" + raw
+		logger, exists := c.Get(loggerKey) // loggerKey is defined in error_handler.go
+		if !exists {
+			// This should not happen if LoggerInjector middleware is used correctly
+			return
 		}
 
-		logrus.WithFields(logrus.Fields{
-			"method":     method,
-			"path":       path,
-			"status":     status,
-			"latency":    latency,
-			"client_ip":  clientIP,
-			"user_agent": c.Request.UserAgent(),
-		}).Info("Request completed")
+		slogLogger, ok := logger.(*slog.Logger)
+		if !ok {
+			// This also should not happen
+			return
+		}
+
+		slogLogger.Info("http request",
+			"status", c.Writer.Status(),
+			"method", c.Request.Method,
+			"path", c.Request.URL.Path,
+			"latency", latency,
+			"client_ip", c.ClientIP(),
+			"user_agent", c.Request.UserAgent(),
+		)
 	}
-} 
+}
+ 

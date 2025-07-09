@@ -4,13 +4,13 @@ import (
 	"net/http"
 	"strings"
 
-	"goooo/internal/auth"
+	"go-bot/internal/auth"
 
 	"github.com/gin-gonic/gin"
 )
 
 // AuthMiddleware проверяет JWT токен и добавляет claims в контекст
-func AuthMiddleware() gin.HandlerFunc {
+func AuthMiddleware(jwtSecretKey string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
@@ -28,7 +28,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		}
 
 		tokenString := parts[1]
-		claims, err := auth.ValidateToken(tokenString)
+		claims, err := auth.ValidateToken(tokenString, jwtSecretKey)
 		if err != nil {
 			switch err {
 			case auth.ErrExpiredToken:

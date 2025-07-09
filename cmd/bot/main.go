@@ -1,37 +1,51 @@
 package main
 
 import (
-	"log"
-	"goooo/internal/api"
-	"goooo/internal/config"
-	"goooo/internal/database"
+	"log/slog"
+	"os"
+
+	"go-bot/internal/api"
+	"go-bot/internal/config"
+	"go-bot/internal/database"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 func main() {
-	// Загружаем конфигурацию
-	config.LoadEnv()
-	config.Init()
+	// Загружаем конфигурацию.
+	// config.Get() загрузит, провалидирует и вернет синглтон-экземпляр.
+	// Если конфигурация некорректна, приложение завершится с паникой.
+	cfg := config.Get()
+
+	// Настройка логгера
+	var logLevel slog.Level
+	if err := logLevel.UnmarshalText([]byte(cfg.LogLevel)); err != nil {
+		log.Printf("Invalid log level '%s', defaulting to INFO", cfg.LogLevel)
+		logLevel = slog.LevelInfo
+	}
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
+	slog.SetDefault(logger) // Устанавливаем как логгер по умолчанию для удобства
 
 	// Инициализируем базу данных
-	db := database.Init()
+	db, err := database.Init(cfg)
+	if err != nil {
+		logger.Error("failed to connect to database", "error", err)
+		os.Exit(1)
+	}
 	defer database.Close(db)
 
-	// Создаем Telegram бота
-	botToken := config.AppConfig.TelegramToken
-	if botToken == "" {
-		log.Fatal("TELEGRAM_TOKEN is required")
-	}
-
-	tgBot, err := tgbotapi.NewBotAPI(botToken)
+	// Создаем Telegram бота.
+	// Проверка на пустой токен больше не нужна, т.к. валидатор в config.Get() уже это сделал.
+	tgBot, err := tgbotapi.NewBotAPI(cfg.TelegramToken)
 	if err != nil {
-		log.Fatal("Failed to create bot:", err)
+		logger.Error("failed to create bot", "error", err)
+		os.Exit(1)
 	}
 
-	// Создаем и запускаем сервер
-	server := api.NewServer(db, tgBot)
+	// Инициализация API сервера
+	server := api.NewServer(cfg, db, tgBot, logger)
 	if err := server.Start(); err != nil {
-		log.Fatal("Server error:", err)
+		logger.Error("server failed to start", "error", err)
+		os.Exit(1)
 	}
-} 
+}

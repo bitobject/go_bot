@@ -2,19 +2,19 @@ package api
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"goooo/internal/api/handlers"
-	"goooo/internal/api/middleware"
-	"goooo/internal/bot"
-	"goooo/internal/config"
+	"go-bot/internal/api/handlers"
+	"go-bot/internal/api/middleware"
+	"go-bot/internal/bot"
+	"go-bot/internal/config"
 
 	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"gorm.io/gorm"
 )
@@ -24,31 +24,29 @@ type Server struct {
 	server *http.Server
 	db     *gorm.DB
 	bot    *tgbotapi.BotAPI
+	logger *slog.Logger
 }
 
-func NewServer(db *gorm.DB, bot *tgbotapi.BotAPI) *Server {
-	// Настройка логирования
-	setupLogging()
-
-	// Создаем Gin router
-	router := gin.New()
+func NewServer(cfg *config.Config, db *gorm.DB, bot *tgbotapi.BotAPI, logger *slog.Logger) *Server {
 
 	// Middleware
-	router.Use(middleware.LoggerMiddleware())
-	router.Use(middleware.RequestLogger())
+	router := gin.New()
+	router.Use(middleware.LoggerInjector(logger))
+	router.Use(middleware.SlogLogger())
 	router.Use(gin.Recovery())
 
 	// Создаем handlers
-	adminHandler := handlers.NewAdminHandler(db)
+	jwtExpiresIn := time.Hour * time.Duration(cfg.JWTExpiresIn)
+	adminHandler := handlers.NewAdminHandler(db, logger, cfg.JWTSecretKey, jwtExpiresIn)
 	healthHandler := handlers.NewHealthHandler(db)
 	webhookHandler := handlers.NewWebhookHandler(bot, db)
 
 	// Настраиваем роуты
-	setupRoutes(router, adminHandler, healthHandler, webhookHandler)
+	setupRoutes(router, cfg, adminHandler, healthHandler, webhookHandler)
 
 	// Создаем HTTP сервер
 	server := &http.Server{
-		Addr:    config.AppConfig.Host + ":" + config.AppConfig.Port,
+		Addr:    cfg.Host + ":" + cfg.Port,
 		Handler: router,
 	}
 
@@ -57,25 +55,15 @@ func NewServer(db *gorm.DB, bot *tgbotapi.BotAPI) *Server {
 		server: server,
 		db:     db,
 		bot:    bot,
+		logger: logger,
 	}
 }
 
-func setupLogging() {
-	// Настройка уровня логирования
-	level, err := logrus.ParseLevel(config.AppConfig.LogLevel)
-	if err != nil {
-		level = logrus.InfoLevel
-	}
-	logrus.SetLevel(level)
 
-	// Настройка формата
-	logrus.SetFormatter(&logrus.JSONFormatter{
-		TimestampFormat: time.RFC3339,
-	})
-}
 
 func setupRoutes(
 	router *gin.Engine,
+	cfg *config.Config,
 	adminHandler *handlers.AdminHandler,
 	healthHandler *handlers.HealthHandler,
 	webhookHandler *handlers.WebhookHandler,
@@ -86,19 +74,19 @@ func setupRoutes(
 
 	// API routes с rate limiting
 	api := router.Group("/api")
-	api.Use(middleware.RateLimitMiddleware())
+	api.Use(middleware.RateLimitMiddleware(cfg))
 
 	// Admin routes
 	admin := api.Group("/admin")
 	{
-		admin.POST("/login", adminHandler.Login)
+		admin.POST("/login", middleware.ErrorHandler(adminHandler.Login))
 		
 		// Защищенные routes
 		protected := admin.Group("")
-		protected.Use(middleware.AuthMiddleware())
+		protected.Use(middleware.AuthMiddleware(cfg.JWTSecretKey))
 		{
-			protected.GET("/profile", adminHandler.GetProfile)
-			protected.POST("/change-password", adminHandler.ChangePassword)
+			protected.GET("/profile", middleware.ErrorHandler(adminHandler.GetProfile))
+			protected.POST("/change-password", middleware.ErrorHandler(adminHandler.ChangePassword))
 		}
 	}
 
@@ -110,12 +98,15 @@ func (s *Server) Start() error {
 	// Настраиваем webhook для Telegram
 	bot.SetupWebhook(s.bot)
 
-	logrus.Infof("Starting server on %s:%s", config.AppConfig.Host, config.AppConfig.Port)
+	s.logger.Info("starting server", "address", s.server.Addr)
 
 	// Запускаем сервер в горутине
 	go func() {
 		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logrus.Fatalf("Server error: %v", err)
+			s.logger.Error("server error", "error", err)
+			// Поскольку это горутина, мы не можем вернуть ошибку. Выход - один из вариантов.
+			// В реальном приложении здесь может быть более сложная логика.
+			os.Exit(1)
 		}
 	}()
 
@@ -124,17 +115,17 @@ func (s *Server) Start() error {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	logrus.Info("Shutting down server...")
+	s.logger.Info("shutting down server...")
 
 	// Даем серверу 30 секунд на завершение
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	if err := s.server.Shutdown(ctx); err != nil {
-		logrus.Errorf("Server forced to shutdown: %v", err)
+		s.logger.Error("server forced to shutdown", "error", err)
 		return err
 	}
 
-	logrus.Info("Server exited")
+	s.logger.Info("server exited gracefully")
 	return nil
 } 

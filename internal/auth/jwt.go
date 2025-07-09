@@ -4,8 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"goooo/internal/config"
-	"goooo/internal/database"
+	"go-bot/internal/database"
 
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -22,7 +21,7 @@ type Claims struct {
 }
 
 // GenerateToken создает JWT токен для администратора
-func GenerateToken(admin *database.Admin) (string, error) {
+func GenerateToken(admin *database.Admin, secretKey string, expiresIn time.Duration) (string, error) {
 	now := time.Now()
 	claims := Claims{
 		AdminID: admin.ID,
@@ -31,24 +30,24 @@ func GenerateToken(admin *database.Admin) (string, error) {
 			Issuer:    "goooo-admin",
 			Subject:   admin.Login,
 			Audience:  []string{"admin-panel"},
-			ExpiresAt: jwt.NewNumericDate(now.Add(config.AppConfig.JWTExpiration)),
+			ExpiresAt: jwt.NewNumericDate(now.Add(expiresIn)),
 			IssuedAt:  jwt.NewNumericDate(now),
 			NotBefore: jwt.NewNumericDate(now),
 		},
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(config.AppConfig.JWTSecret))
+	return token.SignedString([]byte(secretKey))
 }
 
 // ValidateToken валидирует JWT токен и возвращает claims
-func ValidateToken(tokenString string) (*Claims, error) {
+func ValidateToken(tokenString string, secretKey string) (*Claims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
 		// Проверяем алгоритм подписи
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, ErrInvalidToken
 		}
-		return []byte(config.AppConfig.JWTSecret), nil
+		return []byte(secretKey), nil
 	})
 
 	if err != nil {
@@ -66,8 +65,8 @@ func ValidateToken(tokenString string) (*Claims, error) {
 }
 
 // ExtractAdminID извлекает ID администратора из токена
-func ExtractAdminID(tokenString string) (uint, error) {
-	claims, err := ValidateToken(tokenString)
+func ExtractAdminID(tokenString string, secretKey string) (uint, error) {
+	claims, err := ValidateToken(tokenString, secretKey)
 	if err != nil {
 		return 0, err
 	}

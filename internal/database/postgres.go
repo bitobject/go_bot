@@ -1,14 +1,17 @@
 package database
 
 import (
-	"goooo/internal/config"
+	"fmt"
+	"go-bot/internal/config"
+
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"log"
 )
 
-func Init() *gorm.DB {
-	dsn := config.AppConfig.DatabaseURL
+func Init(cfg *config.Config) *gorm.DB {
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=UTC",
+		cfg.DBHost, cfg.DBUser, cfg.DBPassword, cfg.DBName, cfg.DBPort)
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Panic("failed to connect database:", err)

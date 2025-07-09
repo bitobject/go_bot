@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"goooo/internal/config"
+	"go-bot/internal/config"
 
 	"github.com/gin-gonic/gin"
 )
@@ -63,10 +63,10 @@ func (rl *RateLimiter) RateLimit() gin.HandlerFunc {
 }
 
 // RateLimitMiddleware создает rate limiter с настройками из конфигурации
-func RateLimitMiddleware() gin.HandlerFunc {
+func RateLimitMiddleware(cfg *config.Config) gin.HandlerFunc {
 	limiter := NewRateLimiter(
-		config.AppConfig.RateLimitRequests,
-		config.AppConfig.RateLimitWindow,
+		cfg.RateLimitRequests,
+		time.Duration(cfg.RateLimitWindowMinutes)*time.Minute,
 	)
 	return limiter.RateLimit()
 } 
