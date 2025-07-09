@@ -27,8 +27,8 @@ type Message struct {
 // Admin represents an administrator with security features
 type Admin struct {
 	ID                  uint      `gorm:"primaryKey"`
-	Login               string    `gorm:"type:citext;uniqueIndex;not null"`
-	HashedPassword      string    `gorm:"size:255;not null"`
+		Login               string    `gorm:"type:citext;uniqueIndex;not null"`
+		HashedPassword      string    `gorm:"size:255;not null"`
 	IsActive            bool      `gorm:"default:true"`
 	LastLoginAt         *time.Time
 	FailedLoginAttempts int       `gorm:"default:0"`

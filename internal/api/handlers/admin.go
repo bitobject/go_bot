@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -8,78 +9,73 @@ import (
 
 	"go-bot/internal/api/apierror"
 	"go-bot/internal/auth"
-	"go-bot/internal/services"
 	"go-bot/internal/database"
+	"go-bot/internal/services"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 	"gorm.io/gorm"
 )
 
+var validate = validator.New()
+
+// AdminHandler handles admin-related API endpoints.
 type AdminHandler struct {
 	adminService *services.AdminService
-	jwtSecretKey string
-	jwtExpiresIn time.Duration
 	logger       *slog.Logger
+	jwtSecret    string
 }
 
-func NewAdminHandler(db *gorm.DB, logger *slog.Logger, jwtSecretKey string, jwtExpiresIn time.Duration) *AdminHandler {
-	adminService := services.NewAdminService(db)
+// NewAdminHandler creates a new AdminHandler.
+func NewAdminHandler(adminService *services.AdminService, logger *slog.Logger, jwtSecret string) *AdminHandler {
 	return &AdminHandler{
 		adminService: adminService,
-		jwtSecretKey: jwtSecretKey,
-		jwtExpiresIn: jwtExpiresIn,
 		logger:       logger,
+		jwtSecret:    jwtSecret,
 	}
 }
 
-// LoginRequest структура для запроса входа
+// LoginRequest represents the request body for admin login.
 type LoginRequest struct {
-	Login    string `json:"login" binding:"required"`
-	Password string `json:"password" binding:"required"`
+		Login    string `json:"login" validate:"required,min=3"`
+	Password string `json:"password" validate:"required,min=8"`
 }
 
-// LoginResponse структура для ответа при входе
-type LoginResponse struct {
-	Token string `json:"token"`
-	Admin struct {
-		ID    uint   `json:"id"`
-		Login string `json:"login"`
-	} `json:"admin"`
-}
-
-// Login обрабатывает вход администратора
+// Login handles admin authentication and returns a JWT.
 func (h *AdminHandler) Login(c *gin.Context) error {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		return apierror.New(http.StatusBadRequest, "invalid request body")
+		return apierror.New(http.StatusBadRequest, "invalid request body: "+err.Error())
 	}
 
-	// Аутентификация
-	admin, err := h.adminService.AuthenticateAdmin(req.Login, req.Password)
+	if err := validate.Struct(req); err != nil {
+		return apierror.New(http.StatusBadRequest, "validation failed: "+err.Error())
+	}
+
+	// Authenticate admin
+	admin, err := h.adminService.Authenticate(c.Request.Context(), req.Login, req.Password)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if err.Error() == "invalid credentials" {
 			return apierror.New(http.StatusUnauthorized, "invalid credentials")
 		}
-		// Возвращаем внутреннюю ошибку, которую middleware обработает как 500
-		return err
+		return err // Internal server error
 	}
 
-	// Генерация JWT токена
-	token, err := auth.GenerateToken(admin, h.jwtSecretKey, h.jwtExpiresIn)
+	// Generate JWT
+	token, err := auth.GenerateJWT(admin.ID, h.jwtSecret, time.Hour*24)
 	if err != nil {
-		// Возвращаем внутреннюю ошибку
-		return err
+		return err // Internal server error
 	}
 
 	c.JSON(http.StatusOK, gin.H{"token": token})
 	return nil
 }
 
-// GetProfile возвращает профиль текущего администратора
+// GetProfile handles retrieving the admin's profile.
 func (h *AdminHandler) GetProfile(c *gin.Context) error {
-	adminID, exists := c.Get("admin_id")
+	adminID, exists := c.Get("adminID")
 	if !exists {
-		return apierror.New(http.StatusUnauthorized, "unauthorized")
+		return apierror.New(http.StatusUnauthorized, "missing adminID in context")
 	}
 
 	id, ok := adminID.(uint)
@@ -87,26 +83,42 @@ func (h *AdminHandler) GetProfile(c *gin.Context) error {
 		return apierror.New(http.StatusInternalServerError, "invalid admin ID type in token")
 	}
 
-	admin, err := h.adminService.GetAdminByID(id)
+	admin, err := h.adminService.GetProfile(c.Request.Context(), id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return apierror.New(http.StatusNotFound, "admin not found")
 		}
-		return err // Внутренняя ошибка
+		return err // Internal server error
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"id":    admin.ID,
-		"login": admin.Login,
+		"id":        admin.ID,
+		"login":     admin.Login,
+		"is_active": admin.IsActive,
 	})
 	return nil
 }
 
-// ChangePassword изменяет пароль администратора
+// ChangePasswordRequest represents the request body for changing password.
+type ChangePasswordRequest struct {
+		OldPassword string `json:"old_password" validate:"required"`
+	NewPassword string `json:"new_password" validate:"required,min=8"`
+}
+
+// ChangePassword handles changing the admin's password.
 func (h *AdminHandler) ChangePassword(c *gin.Context) error {
-	adminID, exists := c.Get("admin_id")
+	var req ChangePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		return apierror.New(http.StatusBadRequest, "invalid request body: "+err.Error())
+	}
+
+	if err := validate.Struct(req); err != nil {
+		return apierror.New(http.StatusBadRequest, "validation failed: "+err.Error())
+	}
+
+	adminID, exists := c.Get("adminID")
 	if !exists {
-		return apierror.New(http.StatusUnauthorized, "unauthorized")
+		return apierror.New(http.StatusUnauthorized, "missing adminID in context")
 	}
 
 	id, ok := adminID.(uint)
@@ -114,34 +126,13 @@ func (h *AdminHandler) ChangePassword(c *gin.Context) error {
 		return apierror.New(http.StatusInternalServerError, "invalid admin ID type in token")
 	}
 
-	type ChangePasswordRequest struct {
-		CurrentPassword string `json:"current_password" binding:"required"`
-		NewPassword     string `json:"new_password" binding:"required,min=8"`
-	}
-
-	var req ChangePasswordRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		return apierror.New(http.StatusBadRequest, err.Error())
-	}
-
-	// Проверяем текущий пароль
-	admin, err := h.adminService.GetAdminByID(id)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return apierror.New(http.StatusNotFound, "admin not found")
+	if err := h.adminService.ChangePassword(c.Request.Context(), id, req.OldPassword, req.NewPassword); err != nil {
+		if err.Error() == "incorrect old password" {
+			return apierror.New(http.StatusUnauthorized, "incorrect old password")
 		}
-		return err // Внутренняя ошибка
+		return err // Internal server error
 	}
 
-	if !auth.CheckPasswordHash(req.CurrentPassword, admin.Password) {
-		return apierror.New(http.StatusUnauthorized, "invalid current password")
-	}
-
-	// Обновляем пароль
-	if err := h.adminService.UpdateAdminPassword(id, req.NewPassword); err != nil {
-		return err // Внутренняя ошибка
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "password updated successfully"})
+	c.Status(http.StatusNoContent)
 	return nil
 }

@@ -15,9 +15,9 @@ import (
 // а теги validate - для валидации полей.
 type Config struct {
 	// Server settings
-	Host     string `mapstructure:"HOST"`
+	Host     string `mapstructure:"HOST" validate:"required"`
 	Port     string `mapstructure:"PORT"     validate:"required"`
-	LogLevel string `mapstructure:"LOG_LEVEL"`
+	LogLevel string `mapstructure:"LOG_LEVEL" validate:"required"`
 
 	// Telegram Bot
 	TelegramToken string `mapstructure:"TELEGRAM_TOKEN" validate:"required"`
@@ -30,8 +30,8 @@ type Config struct {
 	DBName     string `mapstructure:"DB_NAME"     validate:"required"`
 
 	// API Security
-	RateLimitRequests      int `mapstructure:"RATE_LIMIT_REQUESTS"       validate:"gte=0"`
-	RateLimitWindowMinutes int `mapstructure:"RATE_LIMIT_WINDOW_MINUTES" validate:"gte=1"`
+	RateLimitRequests      int `mapstructure:"RATE_LIMIT_REQUESTS"       validate:"required,gte=0"`
+	RateLimitWindowMinutes int `mapstructure:"RATE_LIMIT_WINDOW_MINUTES" validate:"required,gte=1"`
 	JWTSecretKey      string `mapstructure:"JWT_SECRET_KEY"       validate:"required,min=32"`
 	JWTExpiresIn      int    `mapstructure:"JWT_EXPIRES_IN_HOURS"   validate:"gte=1"`
 }
