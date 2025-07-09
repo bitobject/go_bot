@@ -12,6 +12,14 @@ import (
 	"gorm.io/gorm"
 )
 
+// AdminServiceInterface defines the contract for admin service operations.
+type AdminServiceInterface interface {
+	Authenticate(ctx context.Context, login, password string) (*database.Admin, error)
+	GetProfile(ctx context.Context, adminID uint) (*database.Admin, error)
+	ChangePassword(ctx context.Context, adminID uint, oldPassword, newPassword string) error
+	CreateAdmin(ctx context.Context, login, password string) (*database.Admin, error)
+}
+
 // AdminService provides operations for admin users.
 type AdminService struct {
 	db     *gorm.DB
@@ -19,7 +27,7 @@ type AdminService struct {
 }
 
 // NewAdminService creates a new AdminService.
-func NewAdminService(db *gorm.DB, logger *slog.Logger) *AdminService {
+func NewAdminService(db *gorm.DB, logger *slog.Logger) AdminServiceInterface {
 	return &AdminService{
 		db:     db,
 		logger: logger,

@@ -1,57 +1,45 @@
 package main
 
 import (
-	"flag"
+	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 
-	"go-bot/internal/services"
+	"go-bot/internal/config"
 	"go-bot/internal/database"
+	"go-bot/internal/services"
+
+	"github.com/joho/godotenv"
 )
 
 func main() {
-	// Парсим аргументы командной строки
-	login := flag.String("login", "", "Admin login (required)")
-	password := flag.String("password", "", "Admin password (required)")
-	flag.Parse()
-
-	if *login == "" || *password == "" {
-		fmt.Println("Usage: go run scripts/create_admin.go -login=admin -password=secure_password")
-		flag.PrintDefaults()
-		os.Exit(1)
+	// Загружаем .env файл из корня проекта для локального запуска.
+	// В Docker-окружении переменные будут переданы напрямую.
+	if err := godotenv.Load(); err != nil {
+		log.Println("Info: .env file not found, relying on environment variables")
 	}
 
-	// Загружаем и валидируем конфигурацию. 
-	// Это необходимо, чтобы database.Init() мог получить доступ к данным для подключения.
 	cfg := config.Get()
 
-	// Инициализируем базу данных
 	db := database.Init(cfg)
-	defer database.Close(db)
 
-	// Создаем сервис администраторов
-	adminService := database.NewAdminService(db)
-
-	// Проверяем, существует ли уже администратор с таким логином
-	existingAdmin, err := adminService.GetAdminByLogin(*login)
-	if err == nil {
-		fmt.Printf("Admin with login '%s' already exists (ID: %d)\n", existingAdmin.Login, existingAdmin.ID)
+	if len(os.Args) < 3 {
+		fmt.Println("Usage: go run scripts/create_admin.go <login> <password>")
 		os.Exit(1)
 	}
 
-	// Создаем нового администратора
-	admin, err := adminService.CreateAdmin(*login, *password)
+	login := os.Args[1]
+	password := os.Args[2]
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	adminService := services.NewAdminService(db, logger)
+
+	admin, err := adminService.CreateAdmin(context.Background(), login, password)
 	if err != nil {
-		log.Fatalf("Failed to create admin: %v", err)
+		log.Fatalf("Error creating admin: %v", err)
 	}
 
-	fmt.Printf("Admin created successfully!\n")
-	fmt.Printf("ID: %d\n", admin.ID)
-	fmt.Printf("Login: %s\n", admin.Login)
-	fmt.Printf("Created at: %s\n", admin.CreatedAt.Format("2006-01-02 15:04:05"))
-	fmt.Printf("\nYou can now login using:\n")
-	fmt.Printf("curl -X POST http://localhost:8080/api/admin/login \\\n")
-	fmt.Printf("  -H \"Content-Type: application/json\" \\\n")
-	fmt.Printf("  -d '{\"login\": \"%s\", \"password\": \"%s\"}'\n", *login, *password)
-} 
+	fmt.Printf("Admin '%s' created successfully with ID: %d\n", admin.Login, admin.ID)
+}

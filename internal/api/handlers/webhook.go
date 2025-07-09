@@ -1,38 +1,44 @@
 package handlers
 
 import (
-	"log"
+	"log/slog"
+	"net/http"
 
+	"go-bot/internal/api/apierror"
 	"go-bot/internal/services"
 
 	"github.com/gin-gonic/gin"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"gorm.io/gorm"
 )
 
+// WebhookHandler handles webhook-related API endpoints.
 type WebhookHandler struct {
-	bot *tgbotapi.BotAPI
-	db  *gorm.DB
+	webhookService services.WebhookServiceInterface
+	logger         *slog.Logger
 }
 
-func NewWebhookHandler(bot *tgbotapi.BotAPI, db *gorm.DB) *WebhookHandler {
+// NewWebhookHandler creates a new WebhookHandler.
+func NewWebhookHandler(webhookService services.WebhookServiceInterface, logger *slog.Logger) *WebhookHandler {
 	return &WebhookHandler{
-		bot: bot,
-		db:  db,
+		webhookService: webhookService,
+		logger:         logger,
 	}
 }
 
-// HandleWebhook обрабатывает входящие webhook'и от Telegram
-func (h *WebhookHandler) HandleWebhook(c *gin.Context) {
+// HandleWebhook processes incoming webhooks from Telegram.
+func (h *WebhookHandler) HandleWebhook(c *gin.Context) error {
 	var update tgbotapi.Update
 	if err := c.ShouldBindJSON(&update); err != nil {
-		log.Printf("Error decoding webhook update: %v", err)
-		c.JSON(400, gin.H{"error": "invalid webhook data"})
-		return
+		h.logger.Error("Failed to bind JSON for webhook update", "error", err)
+		return apierror.New(http.StatusBadRequest, "invalid request body")
 	}
 
-	// Обрабатываем update через bot handler
-	bot.ProcessUpdate(update, h.bot, h.db)
+	if err := h.webhookService.ProcessUpdate(c.Request.Context(), update); err != nil {
+		// The service layer should handle its own logging of the error.
+		return apierror.New(http.StatusInternalServerError, "failed to process update")
+	}
 
-	c.Status(200)
-} 
+	c.Status(http.StatusOK)
+	return nil
+}
+ 

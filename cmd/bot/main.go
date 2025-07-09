@@ -5,47 +5,44 @@ import (
 	"os"
 
 	"go-bot/internal/api"
+	"go-bot/internal/bot"
 	"go-bot/internal/config"
 	"go-bot/internal/database"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/joho/godotenv"
 )
 
 func main() {
-	// Загружаем конфигурацию.
-	// config.Get() загрузит, провалидирует и вернет синглтон-экземпляр.
-	// Если конфигурация некорректна, приложение завершится с паникой.
+	// 1. Инициализация логгера
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	// 2. Загрузка .env файла (для локальной разработки)
+	if err := godotenv.Load(); err != nil {
+		logger.Info("No .env file found, relying on environment variables")
+	}
+
+	// 3. Загрузка и валидация конфигурации
 	cfg := config.Get()
 
-	// Настройка логгера
-	var logLevel slog.Level
-	if err := logLevel.UnmarshalText([]byte(cfg.LogLevel)); err != nil {
-		log.Printf("Invalid log level '%s', defaulting to INFO", cfg.LogLevel)
-		logLevel = slog.LevelInfo
-	}
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
-	slog.SetDefault(logger) // Устанавливаем как логгер по умолчанию для удобства
+	// 4. Подключение к базе данных
+	db := database.Init(cfg)
+	logger.Info("Successfully connected to the database")
 
-	// Инициализируем базу данных
-	db, err := database.Init(cfg)
-	if err != nil {
-		logger.Error("failed to connect to database", "error", err)
-		os.Exit(1)
-	}
-	defer database.Close(db)
-
-	// Создаем Telegram бота.
-	// Проверка на пустой токен больше не нужна, т.к. валидатор в config.Get() уже это сделал.
+	// 5. Инициализация Telegram бота
 	tgBot, err := tgbotapi.NewBotAPI(cfg.TelegramToken)
 	if err != nil {
-		logger.Error("failed to create bot", "error", err)
+		logger.Error("Failed to initialize Telegram bot", "error", err)
 		os.Exit(1)
 	}
+	logger.Info("Telegram bot authorized", "bot_username", tgBot.Self.UserName)
 
-	// Инициализация API сервера
-	server := api.NewServer(cfg, db, tgBot, logger)
-	if err := server.Start(); err != nil {
-		logger.Error("server failed to start", "error", err)
-		os.Exit(1)
-	}
+	// 6. Настройка вебхука
+	// URL для вебхука жестко закодирован внутри функции SetupWebhook.
+	bot.SetupWebhook(tgBot)
+	logger.Info("Telegram webhook set successfully")
+
+	// 7. Создание и запуск сервера
+	server := api.NewServer(logger, db, tgBot, cfg)
+	server.Start()
 }

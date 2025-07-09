@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -9,7 +8,6 @@ import (
 
 	"go-bot/internal/api/apierror"
 	"go-bot/internal/auth"
-	"go-bot/internal/database"
 	"go-bot/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -21,13 +19,13 @@ var validate = validator.New()
 
 // AdminHandler handles admin-related API endpoints.
 type AdminHandler struct {
-	adminService *services.AdminService
+	adminService services.AdminServiceInterface
 	logger       *slog.Logger
 	jwtSecret    string
 }
 
 // NewAdminHandler creates a new AdminHandler.
-func NewAdminHandler(adminService *services.AdminService, logger *slog.Logger, jwtSecret string) *AdminHandler {
+func NewAdminHandler(adminService services.AdminServiceInterface, logger *slog.Logger, jwtSecret string) *AdminHandler {
 	return &AdminHandler{
 		adminService: adminService,
 		logger:       logger,
@@ -62,7 +60,7 @@ func (h *AdminHandler) Login(c *gin.Context) error {
 	}
 
 	// Generate JWT
-	token, err := auth.GenerateJWT(admin.ID, h.jwtSecret, time.Hour*24)
+	token, err := auth.GenerateToken(admin, h.jwtSecret, 24*time.Hour)
 	if err != nil {
 		return err // Internal server error
 	}

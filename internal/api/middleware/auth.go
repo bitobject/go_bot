@@ -50,27 +50,4 @@ func AuthMiddleware(jwtSecretKey string) gin.HandlerFunc {
 		c.Next()
 	}
 }
-
-// GetAdminID извлекает ID администратора из контекста
-func GetAdminID(c *gin.Context) (uint, bool) {
-	adminID, exists := c.Get("admin_id")
-	if !exists {
-		return 0, false
-	}
-	if id, ok := adminID.(uint); ok {
-		return id, true
-	}
-	return 0, false
-}
-
-// GetAdminLogin извлекает логин администратора из контекста
-func GetAdminLogin(c *gin.Context) (string, bool) {
-	adminLogin, exists := c.Get("admin_login")
-	if !exists {
-		return "", false
-	}
-	if login, ok := adminLogin.(string); ok {
-		return login, true
-	}
-	return "", false
-} 
+ 

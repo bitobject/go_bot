@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -9,123 +11,110 @@ import (
 	"syscall"
 	"time"
 
+	"go-bot/internal/api/apierror"
 	"go-bot/internal/api/handlers"
 	"go-bot/internal/api/middleware"
-	"go-bot/internal/bot"
 	"go-bot/internal/config"
+	"go-bot/internal/services"
 
 	"github.com/gin-gonic/gin"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"gorm.io/gorm"
 )
 
+// Server is the main application server.
 type Server struct {
 	router *gin.Engine
-	server *http.Server
+	logger *slog.Logger
 	db     *gorm.DB
 	bot    *tgbotapi.BotAPI
-	logger *slog.Logger
+	cfg    *config.Config
 }
 
-func NewServer(cfg *config.Config, db *gorm.DB, bot *tgbotapi.BotAPI, logger *slog.Logger) *Server {
-
-	// Middleware
-	router := gin.New()
-	router.Use(middleware.LoggerInjector(logger))
-	router.Use(middleware.SlogLogger())
-	router.Use(gin.Recovery())
-
-	// Создаем handlers
-	jwtExpiresIn := time.Hour * time.Duration(cfg.JWTExpiresIn)
-	adminHandler := handlers.NewAdminHandler(db, logger, cfg.JWTSecretKey, jwtExpiresIn)
-	healthHandler := handlers.NewHealthHandler(db)
-	webhookHandler := handlers.NewWebhookHandler(bot, db)
-
-	// Настраиваем роуты
-	setupRoutes(router, cfg, adminHandler, healthHandler, webhookHandler)
-
-	// Создаем HTTP сервер
-	server := &http.Server{
-		Addr:    cfg.Host + ":" + cfg.Port,
-		Handler: router,
-	}
-
-	return &Server{
-		router: router,
-		server: server,
+// NewServer creates a new server instance.
+func NewServer(logger *slog.Logger, db *gorm.DB, bot *tgbotapi.BotAPI, cfg *config.Config) *Server {
+	server := &Server{
+		router: gin.Default(),
+		logger: logger,
 		db:     db,
 		bot:    bot,
-		logger: logger,
+		cfg:    cfg,
 	}
+	server.setupRouter()
+	return server
 }
 
+// setupRouter configures the API routes.
+func (s *Server) setupRouter() {
+	// Middlewares
+	s.router.Use(middleware.LoggerInjector(s.logger)) // Внедряем логгер в контекст
+	s.router.Use(middleware.SlogLogger())    // Используем логгер для запросов
+	s.router.Use(gin.Recovery())
 
+	// Health checks are public
+	healthService := services.NewHealthService(s.db)
+	healthHandler := handlers.NewHealthHandler(healthService)
+	s.router.GET("/health", healthHandler.HealthCheck)
+	s.router.GET("/ready", healthHandler.ReadinessCheck)
 
-func setupRoutes(
-	router *gin.Engine,
-	cfg *config.Config,
-	adminHandler *handlers.AdminHandler,
-	healthHandler *handlers.HealthHandler,
-	webhookHandler *handlers.WebhookHandler,
-) {
-	// Health checks (без rate limiting)
-	router.GET("/health", healthHandler.HealthCheck)
-	router.GET("/ready", healthHandler.ReadinessCheck)
-
-	// API routes с rate limiting
-	api := router.Group("/api")
-	api.Use(middleware.RateLimitMiddleware(cfg))
-
-	// Admin routes
-	admin := api.Group("/admin")
+	// API group with rate limiting
+	api := s.router.Group("/api")
+	api.Use(middleware.RateLimitMiddleware(s.cfg))
 	{
-		admin.POST("/login", middleware.ErrorHandler(adminHandler.Login))
-		
-		// Защищенные routes
-		protected := admin.Group("")
-		protected.Use(middleware.AuthMiddleware(cfg.JWTSecretKey))
+		// Services
+		adminService := services.NewAdminService(s.db, s.logger)
+		webhookService := services.NewWebhookService(s.db, s.bot, s.logger)
+
+		// Handlers
+		adminHandler := handlers.NewAdminHandler(adminService, s.logger, s.cfg.JWTSecretKey)
+		webhookHandler := handlers.NewWebhookHandler(webhookService, s.logger) // Добавлен логгер
+
+		// Webhook for Telegram
+		api.POST("/webhook", apierror.ErrorWrapper(webhookHandler.HandleWebhook))
+
+		// Admin routes
+		admin := api.Group("/admin")
 		{
-			protected.GET("/profile", middleware.ErrorHandler(adminHandler.GetProfile))
-			protected.POST("/change-password", middleware.ErrorHandler(adminHandler.ChangePassword))
+			admin.POST("/login", apierror.ErrorWrapper(adminHandler.Login))
+
+			// Protected routes
+			authRequired := admin.Group("/", middleware.AuthMiddleware(s.cfg.JWTSecretKey)) // Используем middleware.JWT
+			{
+				authRequired.GET("/profile", apierror.ErrorWrapper(adminHandler.GetProfile))
+				authRequired.POST("/change-password", apierror.ErrorWrapper(adminHandler.ChangePassword))
+			}
 		}
 	}
-
-	// Webhook (без rate limiting для Telegram)
-	api.POST("/webhook", webhookHandler.HandleWebhook)
 }
 
-func (s *Server) Start() error {
-	// Настраиваем webhook для Telegram
-	bot.SetupWebhook(s.bot)
+// Start runs the HTTP server with graceful shutdown.
+func (s *Server) Start() {
+	server := &http.Server{
+		Addr:    fmt.Sprintf("%s:%s", s.cfg.Host, s.cfg.Port),
+		Handler: s.router,
+	}
 
-	s.logger.Info("starting server", "address", s.server.Addr)
-
-	// Запускаем сервер в горутине
 	go func() {
-		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			s.logger.Error("server error", "error", err)
-			// Поскольку это горутина, мы не можем вернуть ошибку. Выход - один из вариантов.
-			// В реальном приложении здесь может быть более сложная логика.
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			s.logger.Error("Could not start server", "error", err)
 			os.Exit(1)
 		}
 	}()
+
+	s.logger.Info("Server started", "address", server.Addr)
 
 	// Graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
+	s.logger.Info("Shutting down server...")
 
-	s.logger.Info("shutting down server...")
-
-	// Даем серверу 30 секунд на завершение
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := s.server.Shutdown(ctx); err != nil {
-		s.logger.Error("server forced to shutdown", "error", err)
-		return err
+	if err := server.Shutdown(ctx); err != nil {
+			s.logger.Error("Server forced to shutdown", "error", err)
 	}
 
-	s.logger.Info("server exited gracefully")
-	return nil
-} 
+	s.logger.Info("Server exiting")
+}

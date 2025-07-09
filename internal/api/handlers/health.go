@@ -2,79 +2,40 @@ package handlers
 
 import (
 	"net/http"
-	"time"
 
-	"gorm.io/gorm"
+	"go-bot/internal/services"
 
 	"github.com/gin-gonic/gin"
 )
 
+// HealthHandler обрабатывает эндпоинты, связанные со здоровьем сервиса.
 type HealthHandler struct {
-	db *gorm.DB
+	service services.HealthServiceInterface
 }
 
-func NewHealthHandler(db *gorm.DB) *HealthHandler {
-	return &HealthHandler{db: db}
+// NewHealthHandler создает новый HealthHandler.
+func NewHealthHandler(s services.HealthServiceInterface) *HealthHandler {
+	return &HealthHandler{service: s}
 }
 
-// HealthCheck возвращает статус здоровья сервиса
+// HealthCheck проверяет базовую работоспособность сервиса.
+// Возвращает 200 OK, если сервис запущен.
 func (h *HealthHandler) HealthCheck(c *gin.Context) {
-	status := gin.H{
-		"status":    "healthy",
-		"timestamp": time.Now().UTC(),
-		"service":   "goooo-bot",
-	}
-
-	// Проверяем подключение к БД
-	sqlDB, err := h.db.DB()
-	if err != nil {
-		status["status"] = "unhealthy"
-		status["database"] = "error"
-		status["error"] = err.Error()
-		c.JSON(http.StatusServiceUnavailable, status)
-		return
-	}
-
-	// Проверяем ping к БД
-	if err := sqlDB.Ping(); err != nil {
-		status["status"] = "unhealthy"
-		status["database"] = "disconnected"
-		status["error"] = err.Error()
-		c.JSON(http.StatusServiceUnavailable, status)
-		return
-	}
-
-	status["database"] = "connected"
-	c.JSON(http.StatusOK, status)
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
-// ReadinessCheck проверяет готовность сервиса к работе
+// ReadinessCheck проверяет, готов ли сервис принимать трафик.
+// В данном случае, он проверяет подключение к базе данных.
 func (h *HealthHandler) ReadinessCheck(c *gin.Context) {
-	status := gin.H{
-		"status":    "ready",
-		"timestamp": time.Now().UTC(),
-		"service":   "goooo-bot",
-	}
-
-	// Проверяем подключение к БД
-	sqlDB, err := h.db.DB()
-	if err != nil {
-		status["status"] = "not ready"
-		status["database"] = "error"
-		status["error"] = err.Error()
-		c.JSON(http.StatusServiceUnavailable, status)
+	if err := h.service.CheckDB(c.Request.Context()); err != nil {
+		// Не логируем ошибку здесь, так как это может зафлудить логи при проблемах с БД.
+		// Просто отвечаем, что сервис не готов.
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"status": "error",
+			"reason": "database connection failed",
+		})
 		return
 	}
-
-	// Проверяем ping к БД
-	if err := sqlDB.Ping(); err != nil {
-		status["status"] = "not ready"
-		status["database"] = "disconnected"
-		status["error"] = err.Error()
-		c.JSON(http.StatusServiceUnavailable, status)
-		return
-	}
-
-	status["database"] = "ready"
-	c.JSON(http.StatusOK, status)
-} 
+	c.JSON(http.StatusOK, gin.H{"status": "ready"})
+}
+ 
