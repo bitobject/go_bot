@@ -2,6 +2,7 @@ package bot
 
 import (
 	"log"
+	"strconv"
 	"gorm.io/gorm"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -54,20 +55,36 @@ func handleMessage(message *tgbotapi.Message, bot *tgbotapi.BotAPI, db *gorm.DB)
 	}
 	
 	// Handle regular messages
-	msg := tgbotapi.NewMessage(message.Chat.ID, "Привет! Я бот с webhook.")
+	userInfo := ""
+	if message.From != nil {
+		userInfo = "[ID: " + strconv.FormatInt(int64(message.From.ID), 10) + ", Имя: " + message.From.FirstName
+		if message.From.LastName != "" {
+			userInfo += " " + message.From.LastName
+		}
+		userInfo += "] "
+	}
+	msg := tgbotapi.NewMessage(message.Chat.ID, userInfo+"Привет! Я бот с webhook.")
 	bot.Send(msg)
 }
 
 func handleCommand(message *tgbotapi.Message, bot *tgbotapi.BotAPI, db *gorm.DB) {
+	userInfo := ""
+	if message.From != nil {
+		userInfo = "[ID: " + strconv.FormatInt(int64(message.From.ID), 10) + ", Имя: " + message.From.FirstName
+		if message.From.LastName != "" {
+			userInfo += " " + message.From.LastName
+		}
+		userInfo += "] "
+	}
 	switch message.Command() {
 	case "start":
-		msg := tgbotapi.NewMessage(message.Chat.ID, "Привет! Я бот. Используй /help для получения справки.")
+		msg := tgbotapi.NewMessage(message.Chat.ID, userInfo+"Привет! Я бот. Используй /help для получения справки.")
 		bot.Send(msg)
 	case "help":
-		msg := tgbotapi.NewMessage(message.Chat.ID, "Доступные команды:\n/start - Начать работу с ботом\n/help - Показать справку")
+		msg := tgbotapi.NewMessage(message.Chat.ID, userInfo+"Доступные команды:\n/start - Начать работу с ботом\n/help - Показать справку")
 		bot.Send(msg)
 	default:
-		msg := tgbotapi.NewMessage(message.Chat.ID, "Неизвестная команда. Используй /help для получения справки.")
+		msg := tgbotapi.NewMessage(message.Chat.ID, userInfo+"Неизвестная команда. Используй /help для получения справки.")
 		bot.Send(msg)
 	}
 }
