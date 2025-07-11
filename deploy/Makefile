@@ -52,6 +52,23 @@ dev-build: ## Build and start services in development mode
 	docker compose -f docker-compose.yml up -d --build
 
 # Database commands
+
+# Загружаем переменные из .env, чтобы они были доступны для migrate
+include .env
+export
+
+MIGRATE_CMD = migrate -path ./migrations -database 'postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=disable'
+
+migrate-create: ## Создать новый файл миграции (e.g., make migrate-create NAME=add_new_feature)
+	@if [ -z "$(NAME)" ]; then echo "Usage: make migrate-create NAME=<migration_name>"; exit 1; fi
+	$(MIGRATE_CMD) create -ext sql -dir ./migrations -seq $(NAME)
+
+migrate-up: ## Применить все миграции
+	$(MIGRATE_CMD) up
+
+migrate-down: ## Откатить последнюю миграцию
+	$(MIGRATE_CMD) down
+
 db-shell: ## Connect to PostgreSQL shell
 	docker compose -f docker-compose.yml exec postgres psql -U goooo_user -d goooo
 

@@ -118,4 +118,8 @@ dev-setup: deps deps-test ## Настройка окружения разраб�
 	@echo "$(GREEN)Окружение разработки настроено!$(NC)"
 
 dev-test: test-unit test-integration ## Быстрые тесты для разработки
-	@echo "$(GREEN)Тесты разработки завершены!$(NC)" 
+	@echo "$(GREEN)Тесты разработки завершены!$(NC)"
+
+install-migrate: ## Установить утилиту golang-migrate
+	@echo "$(GREEN)Установка golang-migrate...$(NC)"
+	go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest

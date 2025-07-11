@@ -15,7 +15,7 @@ var (
 )
 
 type Claims struct {
-	AdminID uint   `json:"admin_id"`
+	AdminID uint64 `json:"admin_id"`
 	Login   string `json:"login"`
 	jwt.RegisteredClaims
 }
@@ -65,7 +65,7 @@ func ValidateToken(tokenString string, secretKey string) (*Claims, error) {
 }
 
 // ExtractAdminID извлекает ID администратора из токена
-func ExtractAdminID(tokenString string, secretKey string) (uint, error) {
+func ExtractAdminID(tokenString string, secretKey string) (uint64, error) {
 	claims, err := ValidateToken(tokenString, secretKey)
 	if err != nil {
 		return 0, err

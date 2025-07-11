@@ -6,7 +6,7 @@ import (
 
 // User represents a Telegram user
 type User struct {
-	ID         uint      `gorm:"primaryKey"`
+	ID         uint64    `gorm:"primaryKey"`
 	TelegramID int64     `gorm:"uniqueIndex:idx_users_telegram_id;not null"`
 	Username   string    `gorm:"size:255"`
 	FirstName  string    `gorm:"size:255"`
@@ -17,8 +17,8 @@ type User struct {
 
 // Message represents a user message
 type Message struct {
-	ID          uint      `gorm:"primaryKey"`
-	UserID      int64     `gorm:"index"`
+	ID          uint64    `gorm:"primaryKey"`
+	UserID      uint64    `gorm:"index"`
 	MessageText string    `gorm:"type:text"`
 	MessageType string    `gorm:"size:50"`
 	CreatedAt   time.Time
@@ -26,7 +26,7 @@ type Message struct {
 
 // Admin represents an administrator with security features
 type Admin struct {
-	ID                  uint      `gorm:"primaryKey"`
+	ID                  uint64    `gorm:"primaryKey"`
 		Login               string    `gorm:"type:citext;uniqueIndex;not null"`
 		HashedPassword      string    `gorm:"size:255;not null"`
 	IsActive            bool      `gorm:"default:true"`
