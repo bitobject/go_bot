@@ -106,6 +106,10 @@ func loadConfig() (*Config, error) {
 	if err := viper.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
+	// Явно заполняем числовые поля из окружения
+	cfg.RateLimitRequests = viper.GetInt("RATE_LIMIT_REQUESTS")
+	cfg.RateLimitWindowMinutes = viper.GetInt("RATE_LIMIT_WINDOW_MINUTES")
+	cfg.JWTExpiresIn = viper.GetInt("JWT_EXPIRES_IN_HOURS")
 
 	// Валидируем структуру.
 	validate := validator.New()
