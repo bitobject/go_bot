@@ -1,10 +1,8 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"log"
-	"os"
 	"strings"
 	"sync"
 
@@ -60,61 +58,44 @@ func Get() *Config {
 
 // loadConfig выполняет фактическую загрузку конфигурации.
 func loadConfig() (*Config, error) {
-	// Указываем viper на файл .env в текущей директории.
-	// Это хорошо для локальной разработки.
+	viper.SetConfigName("config")
+	viper.SetConfigType("env")
 	viper.AddConfigPath(".")
-	viper.SetConfigName(".env")
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
 
-	// Устанавливаем значения по умолчанию. Они будут использованы, если
-	// переменная не найдена ни в файле, ни в окружении.
-	viper.SetDefault("HOST", "localhost")
-	viper.SetDefault("PORT", "8080")
-	viper.SetDefault("LOG_LEVEL", "info")
-	viper.SetDefault("RATE_LIMIT_REQUESTS", 200)
-	viper.SetDefault("RATE_LIMIT_WINDOW_MINUTES", 1)
-	viper.SetDefault("JWT_EXPIRES_IN_HOURS", 24)
-
-	// Включаем автоматическое чтение переменных окружения.
-	// Это приоритетный способ для работы в production (например, в Docker).
-	viper.AutomaticEnv()
-
-	// Пытаемся прочитать файл конфигурации.
-	if err := viper.ReadInConfig(); err != nil {
-		// Ошибку "файл не найден" можно проигнорировать,
-		// так как мы можем полностью полагаться на переменные окружения.
-		var configFileNotFoundError viper.ConfigFileNotFoundError
-		if !errors.As(err, &configFileNotFoundError) {
-			// Если ошибка другого типа (например, синтаксическая в файле),
-			// это критично, и мы должны вернуть ошибку.
-			return nil, fmt.Errorf("error reading config file: %w", err)
-		}
-	}
-
-	// DEBUG: выводим значения ключевых переменных окружения
-	fmt.Println("DEBUG TELEGRAM_TOKEN:", os.Getenv("TELEGRAM_TOKEN"))
-	fmt.Println("DEBUG DB_HOST:", os.Getenv("DB_HOST"))
-	fmt.Println("DEBUG JWT_SECRET_KEY:", os.Getenv("JWT_SECRET_KEY"))
-	fmt.Println("DEBUG HOST:", os.Getenv("HOST"))
-	fmt.Println("DEBUG PORT:", os.Getenv("PORT"))
-	fmt.Println("DEBUG LOG_LEVEL:", os.Getenv("LOG_LEVEL"))
-	fmt.Println("DEBUG RATE_LIMIT_REQUESTS:", os.Getenv("RATE_LIMIT_REQUESTS"))
-	fmt.Println("DEBUG RATE_LIMIT_WINDOW_MINUTES:", os.Getenv("RATE_LIMIT_WINDOW_MINUTES"))
+	bindEnvs()
 
 	var cfg Config
-	// Десериализуем конфигурацию в структуру.
 	if err := viper.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
-
-	// Валидируем структуру.
 	validate := validator.New()
 	if err := validate.Struct(&cfg); err != nil {
-		// Ошибка валидации очень информативна, она укажет, какое поле и почему не прошло проверку.
 		return nil, fmt.Errorf("configuration validation failed: %w", err)
 	}
 
 	return &cfg, nil
+}
+
+func bindEnvs() {
+	viper.BindEnv("APP_ENV", "APP_ENV")
+	viper.BindEnv("HOST", "HOST")
+	viper.BindEnv("PORT", "PORT")
+	viper.BindEnv("LOG_LEVEL", "LOG_LEVEL")
+	viper.BindEnv("TELEGRAM_TOKEN", "TELEGRAM_TOKEN")
+	viper.BindEnv("DB_HOST", "DB_HOST")
+	viper.BindEnv("DB_PORT", "DB_PORT")
+	viper.BindEnv("DB_USER", "DB_USER")
+	viper.BindEnv("DB_PASSWORD", "DB_PASSWORD")
+	viper.BindEnv("DB_NAME", "DB_NAME")
+	viper.BindEnv("JWT_SECRET_KEY", "JWT_SECRET_KEY")
+	viper.BindEnv("JWT_EXPIRES_IN_HOURS", "JWT_EXPIRES_IN_HOURS")
+	viper.BindEnv("RATE_LIMIT_REQUESTS", "RATE_LIMIT_REQUESTS")
+	viper.BindEnv("RATE_LIMIT_WINDOW_MINUTES", "RATE_LIMIT_WINDOW_MINUTES")
+	viper.BindEnv("READ_TIMEOUT", "READ_TIMEOUT")
+	viper.BindEnv("WRITE_TIMEOUT", "WRITE_TIMEOUT")
+	viper.BindEnv("IDLE_TIMEOUT", "IDLE_TIMEOUT")
+	viper.BindEnv("GRACEFUL_SHUTDOWN_TIMEOUT", "GRACEFUL_SHUTDOWN_TIMEOUT")
 }

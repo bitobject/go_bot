@@ -23,11 +23,23 @@ func Init(cfg *config.Config) *gorm.DB {
 		log.Panic("failed to connect database:", err)
 	}
 
-	// Auto migrate models
-	err = db.AutoMigrate(&User{}, &Message{}, &Admin{})
-	if err != nil {
-		log.Panic("failed to migrate database:", err)
+	// Auto migrate models one by one to isolate the issue
+	log.Println("Migrating User model...")
+	if err := db.AutoMigrate(&User{}); err != nil {
+		log.Panicf("failed to migrate User model: %v", err)
 	}
+
+	log.Println("Migrating Message model...")
+	if err := db.AutoMigrate(&Message{}); err != nil {
+		log.Panicf("failed to migrate Message model: %v", err)
+	}
+
+	log.Println("Migrating Admin model...")
+	if err := db.AutoMigrate(&Admin{}); err != nil {
+		log.Panicf("failed to migrate Admin model: %v", err)
+	}
+
+	log.Println("Database migration successful")
 
 	return db
 }
