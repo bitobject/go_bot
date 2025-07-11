@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/go-playground/validator/v10"
@@ -63,7 +64,7 @@ func loadConfig() (*Config, error) {
 	// Это хорошо для локальной разработки.
 	viper.AddConfigPath(".")
 	viper.SetConfigName(".env")
-	viper.SetConfigType("env")
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
 
 	// Устанавливаем значения по умолчанию. Они будут использованы, если
@@ -106,7 +107,17 @@ func loadConfig() (*Config, error) {
 	if err := viper.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
-	// Явно заполняем числовые поля из окружения
+	// Явно заполняем ВСЕ string- и int-поля из окружения
+	cfg.TelegramToken = viper.GetString("TELEGRAM_TOKEN")
+	cfg.DBHost        = viper.GetString("DB_HOST")
+	cfg.DBPort        = viper.GetString("DB_PORT")
+	cfg.DBUser        = viper.GetString("DB_USER")
+	cfg.DBPassword    = viper.GetString("DB_PASSWORD")
+	cfg.DBName        = viper.GetString("DB_NAME")
+	cfg.JWTSecretKey  = viper.GetString("JWT_SECRET_KEY")
+	cfg.Host          = viper.GetString("HOST")
+	cfg.Port          = viper.GetString("PORT")
+	cfg.LogLevel      = viper.GetString("LOG_LEVEL")
 	cfg.RateLimitRequests = viper.GetInt("RATE_LIMIT_REQUESTS")
 	cfg.RateLimitWindowMinutes = viper.GetInt("RATE_LIMIT_WINDOW_MINUTES")
 	cfg.JWTExpiresIn = viper.GetInt("JWT_EXPIRES_IN_HOURS")
