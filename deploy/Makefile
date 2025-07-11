@@ -4,8 +4,10 @@
 help: ## Show this help message
 	@echo 'Usage: make [target]'
 	@echo ''
-	@echo 'Targets:'
+	@echo 'Production targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-15s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo ''
+	@echo 'If you need to prepare .env: make prepare-env'
 
 build: ## Build Docker images
 	docker-compose -f docker-compose.yml build
@@ -37,6 +39,10 @@ status: ## Show status of all services
 clean: ## Remove all containers, networks, and volumes
 	docker-compose -f docker-compose.yml down -v --remove-orphans
 	docker system prune -f
+
+# Production environment preparation
+prepare-env: ## Copy .env.example to .env if .env does not exist
+	@if [ ! -f .env ]; then cp .env.example .env; fi
 
 # Development commands
 dev: ## Start services in development mode

@@ -32,7 +32,7 @@ services:
     env_file:
       - .env
     volumes:
-      - ./.env:/root/.env:ro
+
     depends_on:
       postgres:
         condition: service_healthy
@@ -57,7 +57,7 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - nginx_logs:/var/log/nginx
-      - /etc/letsencrypt/archive/body-architect.ru:/etc/nginx/ssl:ro # Раскомментируйте, если нужен SSL
+      - ssl:/etc/nginx/ssl:ro
     depends_on:
       - app
     networks:
