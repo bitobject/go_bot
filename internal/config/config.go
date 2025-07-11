@@ -63,6 +63,7 @@ func loadConfig() (*Config, error) {
 	viper.AddConfigPath(".")
 	viper.SetConfigName(".env")
 	viper.SetConfigType("env")
+	viper.AutomaticEnv()
 
 	// Устанавливаем значения по умолчанию. Они будут использованы, если
 	// переменная не найдена ни в файле, ни в окружении.
