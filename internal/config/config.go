@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"sync"
 
 	"github.com/go-playground/validator/v10"
@@ -30,10 +31,10 @@ type Config struct {
 	DBName     string `mapstructure:"DB_NAME"     validate:"required"`
 
 	// API Security
-	RateLimitRequests      int `mapstructure:"RATE_LIMIT_REQUESTS"       validate:"required,gte=0"`
-	RateLimitWindowMinutes int `mapstructure:"RATE_LIMIT_WINDOW_MINUTES" validate:"required,gte=1"`
-	JWTSecretKey      string `mapstructure:"JWT_SECRET_KEY"       validate:"required,min=32"`
-	JWTExpiresIn      int    `mapstructure:"JWT_EXPIRES_IN_HOURS"   validate:"gte=1"`
+	RateLimitRequests      int    `mapstructure:"RATE_LIMIT_REQUESTS"       validate:"required,gte=0"`
+	RateLimitWindowMinutes int    `mapstructure:"RATE_LIMIT_WINDOW_MINUTES" validate:"required,gte=1"`
+	JWTSecretKey           string `mapstructure:"JWT_SECRET_KEY"       validate:"required,min=32"`
+	JWTExpiresIn           int    `mapstructure:"JWT_EXPIRES_IN_HOURS"   validate:"gte=1"`
 }
 
 var (
@@ -80,15 +81,25 @@ func loadConfig() (*Config, error) {
 
 	// Пытаемся прочитать файл конфигурации.
 	if err := viper.ReadInConfig(); err != nil {
-		// Ошибку "файл не найден" можно проигнорировать, 
+		// Ошибку "файл не найден" можно проигнорировать,
 		// так как мы можем полностью полагаться на переменные окружения.
 		var configFileNotFoundError viper.ConfigFileNotFoundError
 		if !errors.As(err, &configFileNotFoundError) {
-			// Если ошибка другого типа (например, синтаксическая в файле), 
+			// Если ошибка другого типа (например, синтаксическая в файле),
 			// это критично, и мы должны вернуть ошибку.
 			return nil, fmt.Errorf("error reading config file: %w", err)
 		}
 	}
+
+	// DEBUG: выводим значения ключевых переменных окружения
+	fmt.Println("DEBUG TELEGRAM_TOKEN:", os.Getenv("TELEGRAM_TOKEN"))
+	fmt.Println("DEBUG DB_HOST:", os.Getenv("DB_HOST"))
+	fmt.Println("DEBUG JWT_SECRET_KEY:", os.Getenv("JWT_SECRET_KEY"))
+	fmt.Println("DEBUG HOST:", os.Getenv("HOST"))
+	fmt.Println("DEBUG PORT:", os.Getenv("PORT"))
+	fmt.Println("DEBUG LOG_LEVEL:", os.Getenv("LOG_LEVEL"))
+	fmt.Println("DEBUG RATE_LIMIT_REQUESTS:", os.Getenv("RATE_LIMIT_REQUESTS"))
+	fmt.Println("DEBUG RATE_LIMIT_WINDOW_MINUTES:", os.Getenv("RATE_LIMIT_WINDOW_MINUTES"))
 
 	var cfg Config
 	// Десериализуем конфигурацию в структуру.
@@ -104,4 +115,4 @@ func loadConfig() (*Config, error) {
 	}
 
 	return &cfg, nil
-} 
+}
