@@ -7,7 +7,7 @@ import (
 // User represents a Telegram user
 type User struct {
 	ID         uint      `gorm:"primaryKey"`
-	TelegramID int64     `gorm:"uniqueIndex;not null"`
+	TelegramID int64     `gorm:"uniqueIndex:idx_users_telegram_id;not null"`
 	Username   string    `gorm:"size:255"`
 	FirstName  string    `gorm:"size:255"`
 	LastName   string    `gorm:"size:255"`
