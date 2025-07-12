@@ -1,7 +1,7 @@
 .PHONY: help up down logs build test clean
 
 # Load environment variables from .env file and export them
-include deploy/.env
+include .env
 export
 
 # ===================================================================================
