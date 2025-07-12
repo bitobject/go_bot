@@ -32,8 +32,8 @@ server {
 
     # Unified location block for proxying to the Go application
     location / {
-        # Rate limit to prevent abuse
-        limit_req zone=api burst=20 nodelay;
+        # Apply the rate limiting zone defined in nginx.conf
+        limit_req zone=api burst=10 nodelay;
 
         # Proxy settings
         proxy_pass http://go_app;
