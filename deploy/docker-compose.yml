@@ -2,7 +2,7 @@ services:
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
-    container_name: goooo_postgres
+    container_name: ${POSTGRES_CONTAINER_NAME}
     restart: unless-stopped
     env_file:
       - .env
@@ -24,7 +24,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
-    container_name: goooo_app
+    container_name: ${APP_CONTAINER_NAME}
     restart: unless-stopped
     env_file:
       - .env
@@ -46,14 +46,15 @@ services:
         condition: service_healthy
     networks:
       - goooo_network
-    command: ["-path", "/migrations", "-database", "postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}?sslmode=disable"]
+    env_file:
+      - .env
 
   # Nginx Reverse Proxy with SSL
   nginx:
     build:
       context: ./nginx
       dockerfile: Dockerfile
-    container_name: goooo_nginx
+    container_name: ${NGINX_CONTAINER_NAME}
     restart: unless-stopped
     ports:
       - "80:80"

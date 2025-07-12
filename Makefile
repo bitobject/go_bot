@@ -1,5 +1,9 @@
 .PHONY: help up down logs build test clean
 
+# Load environment variables from .env file and export them
+include deploy/.env
+export
+
 # ===================================================================================
 # Help
 # ===================================================================================
@@ -14,7 +18,7 @@ help: ## Показывает эту справку
 # ===================================================================================
 
 COMPOSE_FILE = deploy/docker-compose.yml
-COMPOSE_CMD = docker compose -f $(COMPOSE_FILE)
+COMPOSE_CMD = docker compose -f $(COMPOSE_FILE) --env-file deploy/.env
 
 up: ## Запустить все сервисы в фоновом режиме
 	@echo "🚀 Starting all services..."
@@ -52,21 +56,23 @@ clean: ## Остановить и удалить все контейнеры, с
 # Database Migration Commands
 # ===================================================================================
 
-MIGRATE_SERVICE_CMD = $(COMPOSE_CMD) run --rm migrate
+# Construct the database URL from exported env vars
+DATABASE_URL = postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=disable
+
+MIGRATE_CMD = $(COMPOSE_CMD) run --rm migrate -path /migrations -database "$(DATABASE_URL)"
 
 migrate-create: ## Создать новый файл миграции (e.g., make migrate-create NAME=add_users_table)
 	@if [ -z "$(NAME)" ]; then echo "Usage: make migrate-create NAME=<migration_name>"; exit 1; fi
 	@echo "✍️ Creating migration file: $(NAME)..."
 	docker run --rm -v $(shell pwd)/deploy/migrations:/migrations migrate/migrate:v4.17.1 create -ext sql -dir /migrations -seq $(NAME)
 
-
 migrate-up: ## Применить все доступные миграции
 	@echo "⬆️ Applying all up migrations..."
-	@$(MIGRATE_SERVICE_CMD) up
+	@$(MIGRATE_CMD) up
 
 migrate-down: ## Откатить последнюю примененную миграцию
 	@echo "⬇️ Reverting last migration..."
-	@$(MIGRATE_SERVICE_CMD) down
+	@$(MIGRATE_CMD) down
 
 # ===================================================================================
 # Local Development & Testing Commands
