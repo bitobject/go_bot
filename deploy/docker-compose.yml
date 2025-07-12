@@ -60,10 +60,10 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      # Nginx configs are now built into the image.
-      # The entrypoint script generates the final config from a template.
-      - nginx_logs:/var/log/nginx
+      # Конфигурация Nginx теперь полностью запекается в образ.
+      # Том для конфигов удален, чтобы избежать перезаписи исправлений старыми файлами с хоста.
       - ./ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
     depends_on:
       - app
     networks:
