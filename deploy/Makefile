@@ -70,6 +70,10 @@ migrate-create: ## Создать новый файл миграции (e.g., ma
 	@echo "✍️ Creating migration file: $(NAME)..."
 	docker run --rm -v $(shell pwd)/deploy/migrations:/migrations migrate/migrate:v4.17.1 create -ext sql -dir /migrations -seq $(NAME)
 
+migrate-status: ## Показать статус миграций
+	@echo "📊 Checking migration status..."
+	@$(MIGRATE_CMD) version
+
 migrate-up: ## Применить все доступные миграции
 	@echo "⬆️ Applying all up migrations..."
 	@$(MIGRATE_CMD) up

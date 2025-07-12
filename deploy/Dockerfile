@@ -34,11 +34,6 @@ COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 # Копируем скомпилированный бинарник из образа сборщика.
 COPY --from=builder /go-bot /go-bot
 
-# Копируем файл .env.production.
-# Предполагается, что у вас есть файл .env.production для производственной среды.
-# Если нет, можно использовать переменные окружения при запуске контейнера.
-COPY .env.production .env
-
 # Указываем порт, который будет слушать приложение.
 EXPOSE 8080
 
