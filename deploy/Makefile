@@ -32,6 +32,10 @@ rebuild-up: ## Пересобрать образы и запустить сер�
 	@echo "🏗️  Rebuilding and starting all services..."
 	@$(COMPOSE_CMD) up -d --build
 
+rebuild-nginx: ## Пересобрать и перезапустить сервис nginx
+	@echo "🔄 Rebuilding and restarting nginx service..."
+	@$(COMPOSE_CMD) up -d --build nginx
+
 build: ## Собрать или пересобрать образы сервисов
 	@echo "🛠️ Building images..."
 	@$(COMPOSE_CMD) build
