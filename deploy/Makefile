@@ -17,8 +17,8 @@ help: ## Показывает эту справку
 # Docker-based Environment Commands
 # ===================================================================================
 
-COMPOSE_FILE = deploy/docker-compose.yml
-COMPOSE_CMD = docker-compose -f $(COMPOSE_FILE) --env-file deploy/.env
+COMPOSE_FILE = docker-compose.yml
+COMPOSE_CMD = docker compose -f $(COMPOSE_FILE) --env-file .env
 
 up: ## Запустить все сервисы в фоновом режиме
 	@echo "🚀 Starting all services..."

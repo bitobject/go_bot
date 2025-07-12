@@ -18,10 +18,3 @@ tidy: ## Привести в порядок go.mod и go.sum
 	@echo "🧹 Tidying go modules..."
 	@go mod tidy
 
-# ===================================================================================
-# Include deployment commands
-# ===================================================================================
-
-# Include the Makefile from the deploy directory to make its targets available here.
-# This allows running commands like 'make up' or 'make migrate-up' from the root.
-include deploy/Makefile
