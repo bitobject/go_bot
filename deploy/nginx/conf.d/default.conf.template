@@ -30,8 +30,10 @@ server {
     # HSTS (HTTP Strict Transport Security)
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
 
-    # Clickjacking Protection
+    # Security Headers
     add_header X-Frame-Options "SAMEORIGIN";
+    add_header X-Content-Type-Options nosniff;
+    add_header Referrer-Policy "strict-origin-when-cross-origin";
 
     # Unified location block for proxying to the Go application
     location / {
