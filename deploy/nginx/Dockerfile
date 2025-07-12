@@ -2,7 +2,8 @@
 FROM nginx:alpine
 
 # Install wget for healthchecks
-RUN apk add --no-cache wget
+# Install necessary packages
+RUN apk add --no-cache wget gettext
 
 # Copy the Nginx configuration template and the entrypoint script
 COPY ./conf.d/default.conf.template /etc/nginx/templates/default.conf.template

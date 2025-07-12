@@ -1,10 +1,10 @@
 #!/bin/sh
 set -e
 
-# Use envsubst to replace environment variables in the template file
-# and output the result to the final Nginx configuration file.
-# The list of variables to substitute is provided to prevent accidental substitution of other Nginx variables.
-envsubst '${DOMAIN_NAME}' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf
+# Use sed to replace the domain name in the template.
+# This is more robust than envsubst as it doesn't require extra packages
+# and won't accidentally replace other shell variables.
+cat /etc/nginx/templates/default.conf.template | sed "s/\${DOMAIN_NAME}/${DOMAIN_NAME}/g" > /etc/nginx/conf.d/default.conf
 
 # Execute the command passed to this script (e.g., nginx -g 'daemon off;')
 exec "$@"
