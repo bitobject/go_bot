@@ -1,0 +1,12 @@
+services:
+  app:
+    image: goooo-app:latest
+    build:
+      context: ../.. # Project root
+      dockerfile: deploy/Dockerfile
+
+  nginx:
+    image: goooo-nginx:latest
+    build:
+      context: ../nginx
+      dockerfile: Dockerfile
