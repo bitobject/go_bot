@@ -2,15 +2,14 @@ services:
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
-    container_name: ${DB_HOST}
+    container_name: goooo_postgres
     restart: unless-stopped
     env_file:
       - .env
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
-    ports:
-      - "5432:5432"
+    # The database port should not be exposed to the host machine for security reasons.
+    # The 'app' service can access it through the internal 'goooo_network'.
     networks:
       - goooo_network
     healthcheck:
@@ -34,24 +33,34 @@ services:
         condition: service_healthy
     networks:
       - goooo_network
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+
+  # Go Migrate service for database migrations
+  migrate:
+    image: migrate/migrate:v4.17.1
+    profiles:
+      - tools
+    volumes:
+      - ./migrations:/migrations
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - goooo_network
+    command: ["-path", "/migrations", "-database", "postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}?sslmode=disable"]
 
   # Nginx Reverse Proxy with SSL
   nginx:
-    image: nginx:alpine
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
     container_name: goooo_nginx
     restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      # Nginx configs are now built into the image.
+      # The entrypoint script generates the final config from a template.
       - nginx_logs:/var/log/nginx
       - ./ssl:/etc/nginx/ssl:ro
     depends_on:
@@ -59,7 +68,9 @@ services:
     networks:
       - goooo_network
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/80"]
+      # This healthcheck now correctly uses wget (installed in the custom Dockerfile)
+      # and points to the actual health endpoint proxied by Nginx.
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
       interval: 30s
       timeout: 10s
       retries: 3

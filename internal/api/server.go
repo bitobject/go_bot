@@ -2,14 +2,9 @@ package api
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
 
 	"go-bot/internal/api/apierror"
 	"go-bot/internal/api/handlers"
@@ -24,22 +19,31 @@ import (
 
 // Server is the main application server.
 type Server struct {
-	router *gin.Engine
-	logger *slog.Logger
-	db     *gorm.DB
-	bot    *tgbotapi.BotAPI
-	cfg    *config.Config
+	router     *gin.Engine
+	logger     *slog.Logger
+	db         *gorm.DB
+	bot        *tgbotapi.BotAPI
+	cfg        *config.Config
+	httpServer *http.Server
 }
 
 // NewServer creates a new server instance.
 func NewServer(logger *slog.Logger, db *gorm.DB, bot *tgbotapi.BotAPI, cfg *config.Config) *Server {
+	gin.SetMode(gin.ReleaseMode)
+	router := gin.Default()
+
 	server := &Server{
-		router: gin.Default(),
+		router: router,
 		logger: logger,
 		db:     db,
 		bot:    bot,
 		cfg:    cfg,
+		httpServer: &http.Server{
+			Addr:    fmt.Sprintf("%s:%s", cfg.Host, cfg.Port),
+			Handler: router,
+		},
 	}
+
 	server.setupRouter()
 	return server
 }
@@ -87,34 +91,13 @@ func (s *Server) setupRouter() {
 	}
 }
 
-// Start runs the HTTP server with graceful shutdown.
-func (s *Server) Start() {
-	server := &http.Server{
-		Addr:    fmt.Sprintf("%s:%s", s.cfg.Host, s.cfg.Port),
-		Handler: s.router,
-	}
+// Start runs the HTTP server.
+func (s *Server) Start() error {
+	s.logger.Info("Server starting", "address", s.httpServer.Addr)
+	return s.httpServer.ListenAndServe()
+}
 
-	go func() {
-		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			s.logger.Error("Could not start server", "error", err)
-			os.Exit(1)
-		}
-	}()
-
-	s.logger.Info("Server started", "address", server.Addr)
-
-	// Graceful shutdown
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
-	s.logger.Info("Shutting down server...")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := server.Shutdown(ctx); err != nil {
-			s.logger.Error("Server forced to shutdown", "error", err)
-	}
-
-	s.logger.Info("Server exiting")
+// Shutdown gracefully shuts down the server.
+func (s *Server) Shutdown(ctx context.Context) error {
+	return s.httpServer.Shutdown(ctx)
 }

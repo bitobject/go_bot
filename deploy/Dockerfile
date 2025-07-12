@@ -16,10 +16,11 @@ RUN go mod download
 # Копируем весь остальной исходный код
 COPY . .
 
-# Собираем статически скомпилированный бинарник без отладочной информации
-# -w - убирает DWARF символы
-# -s - убирает таблицу символов
+# Собираем основной бинарник приложения
 RUN CGO_ENABLED=0 go build -ldflags="-w -s" -o /bin/app ./cmd/bot
+
+# Собираем бинарник для healthcheck
+RUN CGO_ENABLED=0 go build -ldflags="-w -s" -o /bin/healthcheck ./cmd/healthcheck
 
 # --- Финальный этап ---
 # Используем пустой образ scratch для максимальной безопасности и минимального размера
@@ -29,21 +30,22 @@ FROM scratch
 # HTTPS-запросов из нашего приложения (например, к API Telegram).
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
-# Копируем только скомпилированное приложение
+# Копируем скомпилированное приложение и healthcheck-клиент
 COPY --from=builder /bin/app /app
+COPY --from=builder /bin/healthcheck /healthcheck
 
 # Создаем непривилегированного пользователя с UID 10001.
 # USER 10001 не создает пользователя, а указывает Docker запустить
 # контейнер от имени пользователя с этим UID. Это работает в scratch.
 USER 10001
 
-# Команда для запуска нашего приложения
-# Создаем непривилегированного пользователя.
-# Хотя в 'scratch' нет оболочки для создания пользователя, мы можем указать UID/GID.
-# Если вы используете 'alpine', то сначала нужно создать пользователя:
-# RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-# USER appuser
-
 # Указываем, какой порт слушает приложение (только для информации, не открывает порт).
 EXPOSE 8080
+
+# Встроенная проверка состояния. Использует наш скомпилированный клиент.
+# Это надежнее, чем внешние утилиты, особенно в scratch-образе.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD ["/healthcheck", "http://localhost:8080/health"]
+
+# Команда для запуска нашего приложения.
 ENTRYPOINT ["/app"]

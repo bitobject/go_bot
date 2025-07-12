@@ -8,19 +8,21 @@ import (
 )
 
 // SetupWebhook настраивает webhook для Telegram бота
-func SetupWebhook(bot *tgbotapi.BotAPI) {
-	webhookURL := "https://body-architect.ru/api/webhook"
-	
+func SetupWebhook(bot *tgbotapi.BotAPI, webhookURL string) {
 	// Delete existing webhook first
 	_, err := bot.Request(tgbotapi.DeleteWebhookConfig{})
 	if err != nil {
 		log.Printf("Error deleting webhook: %v", err)
 	}
-	
+
 	// Set new webhook
-	webhookConfig, _ := tgbotapi.NewWebhook(webhookURL)
+	webhookConfig, err := tgbotapi.NewWebhook(webhookURL)
+	if err != nil {
+		log.Printf("Error creating webhook config: %v", err)
+		return
+	}
 	webhookConfig.MaxConnections = 100
-	
+
 	_, err = bot.Request(webhookConfig)
 	if err != nil {
 		log.Printf("Error setting webhook: %v", err)

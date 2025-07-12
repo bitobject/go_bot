@@ -1,0 +1,18 @@
+# Use the official Nginx image as a base
+FROM nginx:alpine
+
+# Install wget for healthchecks
+RUN apk add --no-cache wget
+
+# Copy the Nginx configuration template and the entrypoint script
+COPY ./conf.d/default.conf.template /etc/nginx/templates/default.conf.template
+COPY ./entrypoint.sh /docker-entrypoint.sh
+
+# Make the entrypoint script executable
+RUN chmod +x /docker-entrypoint.sh
+
+# Set the entrypoint
+ENTRYPOINT ["/docker-entrypoint.sh"]
+
+# The default command to run when the container starts
+CMD ["nginx", "-g", "daemon off;"]

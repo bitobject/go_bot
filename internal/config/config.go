@@ -21,6 +21,7 @@ type Config struct {
 
 	// Telegram Bot
 	TelegramToken string `mapstructure:"TELEGRAM_TOKEN" validate:"required"`
+	WebhookURL    string `mapstructure:"WEBHOOK_URL"      validate:"required,url"`
 
 	// Database
 	DBHost     string `mapstructure:"DB_HOST"     validate:"required"`
@@ -85,6 +86,7 @@ func bindEnvs() {
 	viper.BindEnv("PORT", "PORT")
 	viper.BindEnv("LOG_LEVEL", "LOG_LEVEL")
 	viper.BindEnv("TELEGRAM_TOKEN", "TELEGRAM_TOKEN")
+	viper.BindEnv("WEBHOOK_URL", "WEBHOOK_URL")
 	viper.BindEnv("DB_HOST", "DB_HOST")
 	viper.BindEnv("DB_PORT", "DB_PORT")
 	viper.BindEnv("DB_USER", "DB_USER")

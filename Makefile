@@ -1,125 +1,103 @@
-.PHONY: help test test-unit test-integration test-benchmark test-coverage build run clean
+.PHONY: help up down logs build test clean
 
-# Переменные
-BINARY_NAME=goooo-bot
-MAIN_PATH=cmd/bot/main.go
+# ===================================================================================
+# Help
+# ===================================================================================
+
+help: ## Показывает эту справку
+	@echo "Usage: make [target]"
+	@echo ""
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[1;33m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+# ===================================================================================
+# Docker-based Environment Commands
+# ===================================================================================
+
+COMPOSE_FILE = deploy/docker-compose.yml
+COMPOSE_CMD = docker compose -f $(COMPOSE_FILE)
+
+up: ## Запустить все сервисы в фоновом режиме
+	@echo "🚀 Starting all services..."
+	@$(COMPOSE_CMD) up -d
+
+down: ## Остановить все сервисы
+	@echo "🛑 Stopping all services..."
+	@$(COMPOSE_CMD) down
+
+build: ## Собрать или пересобрать образы сервисов
+	@echo "🛠️ Building images..."
+	@$(COMPOSE_CMD) build
+
+restart: ## Перезапустить все сервисы
+	@echo "🔄 Restarting all services..."
+	@$(COMPOSE_CMD) restart
+
+logs: ## Показать логи всех сервисов
+	@echo "📜 Tailing logs..."
+	@$(COMPOSE_CMD) logs -f
+
+logs-app: ## Показать логи только сервиса 'app'
+	@echo "📜 Tailing logs for app..."
+	@$(COMPOSE_CMD) logs -f app
+
+ps: ## Показать статус контейнеров
+	@echo "📊 Showing container status..."
+	@$(COMPOSE_CMD) ps
+
+clean: ## Остановить и удалить все контейнеры, сети и volumes
+	@echo "🧹 Cleaning up the environment..."
+	@$(COMPOSE_CMD) down -v --remove-orphans
+
+# ===================================================================================
+# Database Migration Commands
+# ===================================================================================
+
+MIGRATE_SERVICE_CMD = $(COMPOSE_CMD) run --rm migrate
+
+migrate-create: ## Создать новый файл миграции (e.g., make migrate-create NAME=add_users_table)
+	@if [ -z "$(NAME)" ]; then echo "Usage: make migrate-create NAME=<migration_name>"; exit 1; fi
+	@echo "✍️ Creating migration file: $(NAME)..."
+	docker run --rm -v $(shell pwd)/deploy/migrations:/migrations migrate/migrate:v4.17.1 create -ext sql -dir /migrations -seq $(NAME)
+
+
+migrate-up: ## Применить все доступные миграции
+	@echo "⬆️ Applying all up migrations..."
+	@$(MIGRATE_SERVICE_CMD) up
+
+migrate-down: ## Откатить последнюю примененную миграцию
+	@echo "⬇️ Reverting last migration..."
+	@$(MIGRATE_SERVICE_CMD) down
+
+# ===================================================================================
+# Local Development & Testing Commands
+# ===================================================================================
+
 TEST_PATH=./...
 
-# Цвета для вывода
-GREEN=\033[0;32m
-YELLOW=\033[1;33m
-RED=\033[0;31m
-NC=\033[0m # No Color
+test: ## Запустить все Go тесты
+	@echo "🧪 Running all tests..."
+	@go test -v -race -cover $(TEST_PATH)
 
-help: ## Показать справку
-	@echo "$(GREEN)Доступные команды:$(NC)"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(YELLOW)%-20s$(NC) %s\n", $$1, $$2}'
+lint: ## Запустить golangci-lint
+	@echo "🔍 Linting code..."
+	@golangci-lint run
 
-test: ## Запустить все тесты
-	@echo "$(GREEN)Запуск всех тестов...$(NC)"
-	go test -v $(TEST_PATH)
+tidy: ## Привести в порядок go.mod и go.sum
+	@echo "🧹 Tidying go modules..."
+	@go mod tidy
 
-test-unit: ## Запустить только unit тесты
-	@echo "$(GREEN)Запуск unit тестов...$(NC)"
-	go test -v ./internal/api/handlers/ -run "^TestAdminHandler"
+# ===================================================================================
+# Utility Commands
+# ===================================================================================
 
-test-integration: ## Запустить только интеграционные тесты
-	@echo "$(GREEN)Запуск интеграционных тестов...$(NC)"
-	go test -v ./internal/api/ -run "^TestAPI"
+db-shell: ## Подключиться к оболочке PostgreSQL внутри контейнера
+	@echo "🗄️ Connecting to PostgreSQL shell..."
+	@$(COMPOSE_CMD) exec postgres psql -U $(DB_USER) -d $(DB_NAME)
 
-test-benchmark: ## Запустить benchmark тесты
-	@echo "$(GREEN)Запуск benchmark тестов...$(NC)"
-	go test -bench=. -benchmem $(TEST_PATH)
+app-shell: ## Подключиться к оболочке 'app' контейнера (не работает с 'scratch')
+	@echo "🐚 Connecting to app shell (Note: will fail with 'scratch' image)..."
+	@$(COMPOSE_CMD) exec app sh
 
-test-coverage: ## Запустить тесты с покрытием
-	@echo "$(GREEN)Запуск тестов с покрытием...$(NC)"
-	go test -coverprofile=coverage.out $(TEST_PATH)
-	go tool cover -html=coverage.out -o coverage.html
-	@echo "$(GREEN)Отчет о покрытии сохранен в coverage.html$(NC)"
-
-test-short: ## Запустить короткие тесты
-	@echo "$(GREEN)Запуск коротких тестов...$(NC)"
-	go test -short $(TEST_PATH)
-
-test-race: ## Запустить тесты на race conditions
-	@echo "$(GREEN)Запуск тестов на race conditions...$(NC)"
-	go test -race $(TEST_PATH)
-
-build: ## Собрать приложение
-	@echo "$(GREEN)Сборка приложения...$(NC)"
-	go build -o $(BINARY_NAME) $(MAIN_PATH)
-
-run: ## Запустить приложение
-	@echo "$(GREEN)Запуск приложения...$(NC)"
-	go run $(MAIN_PATH)
-
-run-dev: ## Запустить в режиме разработки
-	@echo "$(GREEN)Запуск в режиме разработки...$(NC)"
-	LOG_LEVEL=debug go run $(MAIN_PATH)
-
-deps: ## Установить зависимости
-	@echo "$(GREEN)Установка зависимостей...$(NC)"
-	go mod tidy
-	go mod download
-
-deps-test: ## Установить тестовые зависимости
-	@echo "$(GREEN)Установка тестовых зависимостей...$(NC)"
-	go get github.com/stretchr/testify
-	go get gorm.io/driver/sqlite
-
-lint: ## Запустить линтер
-	@echo "$(GREEN)Проверка кода линтером...$(NC)"
-	golangci-lint run
-
-format: ## Форматировать код
-	@echo "$(GREEN)Форматирование кода...$(NC)"
-	go fmt $(TEST_PATH)
-	go vet $(TEST_PATH)
-
-clean: ## Очистить артефакты сборки
-	@echo "$(GREEN)Очистка артефактов...$(NC)"
-	rm -f $(BINARY_NAME)
-	rm -f coverage.out
-	rm -f coverage.html
-
-create-admin: ## Создать администратора (требует параметры)
-	@echo "$(YELLOW)Использование: make create-admin LOGIN=admin PASSWORD=secure_password$(NC)"
-	@if [ -z "$(LOGIN)" ] || [ -z "$(PASSWORD)" ]; then \
-		echo "$(RED)Ошибка: LOGIN и PASSWORD обязательны$(NC)"; \
-		exit 1; \
-	fi
-	go run scripts/create_admin.go -login=$(LOGIN) -password=$(PASSWORD)
-
-test-api: ## Тестировать API (требует запущенный сервер)
-	@echo "$(GREEN)Тестирование API...$(NC)"
-	@if [ ! -f "./test_admin_login.sh" ]; then \
-		echo "$(RED)Ошибка: файл test_admin_login.sh не найден$(NC)"; \
-		exit 1; \
-	fi
-	./test_admin_login.sh
-
-docker-build: ## Собрать Docker образ
-	@echo "$(GREEN)Сборка Docker образа...$(NC)"
-	docker build -t $(BINARY_NAME) .
-
-docker-run: ## Запустить в Docker
-	@echo "$(GREEN)Запуск в Docker...$(NC)"
-	docker run -p 8080:8080 --env-file .env $(BINARY_NAME)
-
-# Команды для CI/CD
-ci-test: deps test-unit test-integration test-race test-coverage ## Полный набор тестов для CI
-	@echo "$(GREEN)CI тесты завершены успешно!$(NC)"
-
-ci-build: deps build ## Сборка для CI
-	@echo "$(GREEN)CI сборка завершена успешно!$(NC)"
-
-# Команды для разработки
-dev-setup: deps deps-test ## Настройка окружения разработки
-	@echo "$(GREEN)Окружение разработки настроено!$(NC)"
-
-dev-test: test-unit test-integration ## Быстрые тесты для разработки
-	@echo "$(GREEN)Тесты разработки завершены!$(NC)"
-
-install-migrate: ## Установить утилиту golang-migrate
-	@echo "$(GREEN)Установка golang-migrate...$(NC)"
-	go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+nginx-reload: ## Перезагрузить конфигурацию Nginx
+	@echo " reloading Nginx configuration..."
+	@$(COMPOSE_CMD) exec nginx nginx -s reload
