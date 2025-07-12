@@ -28,6 +28,10 @@ down: ## Остановить все сервисы
 	@echo "🛑 Stopping all services..."
 	@$(COMPOSE_CMD) down
 
+rebuild-up: ## Пересобрать образы и запустить сервисы
+	@echo "🏗️  Rebuilding and starting all services..."
+	@$(COMPOSE_CMD) up -d --build
+
 build: ## Собрать или пересобрать образы сервисов
 	@echo "🛠️ Building images..."
 	@$(COMPOSE_CMD) build
