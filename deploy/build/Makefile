@@ -4,7 +4,7 @@
 # Use the build-specific compose file and the .env file from the parent directory.
 COMPOSE_CMD = docker-compose -f docker-compose.build.yml --env-file ../.env
 
-.PHONY: all build app nginx help
+.PHONY: all build deliver deploy app nginx help
 
 .DEFAULT_GOAL := help
 
@@ -16,42 +16,49 @@ help: ## Показать эту справку
 
 all: build ## Собрать все образы (действие по умолчанию)
 
-build: ## Собрать все образы и сохранить их в .tar файлы
+build: ## Build and save all images to .tar files
 	@echo "🛠️  Building all images locally..."
 	@$(COMPOSE_CMD) build --parallel
 	@echo "📦  Saving images to .tar files..."
-	@docker save goooo-app:latest -o goooo-app.tar
-	@docker save goooo-nginx:latest -o goooo-nginx.tar
-	@echo "✅  Images saved to goooo-app.tar and goooo-nginx.tar"
+	@docker save $(APP_IMAGE_NAME):latest -o $(APP_IMAGE_NAME).tar
+	@docker save $(NGINX_IMAGE_NAME):latest -o $(NGINX_IMAGE_NAME).tar
+	@echo "✅ Images saved to $(APP_IMAGE_NAME).tar and $(NGINX_IMAGE_NAME).tar"
 
 app: ## Собрать и сохранить образ приложения в .tar файл
 	@echo "🛠️  Building app image locally..."
 	@$(COMPOSE_CMD) build app
-	@echo "📦  Saving app image to goooo-app.tar..."
-	@docker save goooo-app:latest -o goooo-app.tar
-	@echo "✅  Image saved to goooo-app.tar"
+	@echo "📦  Saving app image to $(APP_IMAGE_NAME).tar..."
+	@docker save $(APP_IMAGE_NAME):latest -o $(APP_IMAGE_NAME).tar
+	@echo "✅  Image saved to $(APP_IMAGE_NAME).tar"
 
 nginx: ## Собрать и сохранить образ nginx в .tar файл
 	@echo "🛠️  Building nginx image locally..."
 	@$(COMPOSE_CMD) build nginx
-	@echo "📦  Saving nginx image to goooo-nginx.tar..."
-	@docker save goooo-nginx:latest -o goooo-nginx.tar
-	@echo "✅  Image saved to goooo-nginx.tar"
+	@echo "📦  Saving nginx image to $(NGINX_IMAGE_NAME).tar..."
+	@docker save $(NGINX_IMAGE_NAME):latest -o $(NGINX_IMAGE_NAME).tar
+	@echo "✅  Image saved to $(NGINX_IMAGE_NAME).tar"
 
 # ====================================================================================
 # DEPLOYMENT
 # ====================================================================================
-REMOTE_HOST = vps
-REMOTE_IMAGE_DIR = /etc/images
 
-deploy: build ## Собрать, доставить и загрузить образы на удаленный сервер
-	@echo "🚀 Deploying images to $(REMOTE_HOST)..."
-	@echo "1. Creating remote directory $(REMOTE_IMAGE_DIR) on $(REMOTE_HOST)..."
-	@ssh $(REMOTE_HOST) 'sudo mkdir -p $(REMOTE_IMAGE_DIR) && sudo chown $$(whoami) $(REMOTE_IMAGE_DIR)'
-	@echo "2. Copying .tar files to $(REMOTE_HOST):$(REMOTE_IMAGE_DIR)..."
-	@scp goooo-app.tar goooo-nginx.tar $(REMOTE_HOST):$(REMOTE_IMAGE_DIR)/
-	@echo "3. Loading images into Docker on $(REMOTE_HOST)..."
-	@ssh $(REMOTE_HOST) 'docker load -i $(REMOTE_IMAGE_DIR)/goooo-app.tar && docker load -i $(REMOTE_IMAGE_DIR)/goooo-nginx.tar'
-	@echo "4. Cleaning up remote .tar files..."
-	@ssh $(REMOTE_HOST) 'rm $(REMOTE_IMAGE_DIR)/goooo-app.tar $(REMOTE_IMAGE_DIR)/goooo-nginx.tar'
-	@echo "✅  Deployment complete!"
+deliver: build ## Deliver built images to the remote server
+	@echo "🚚 Delivering images to $(SSH_HOST)..."
+	@scp $(APP_IMAGE_NAME).tar $(NGINX_IMAGE_NAME).tar $(SSH_USER)@$(SSH_HOST):$(DEPLOY_PATH)
+	@echo "✅ Images delivered successfully to $(DEPLOY_PATH) on $(SSH_HOST)!"
+
+deploy: ## Deploy the application on the remote server using delivered images
+	@echo "🔄 Deploying and restarting services on $(SSH_HOST)..."
+	@ssh $(SSH_USER)@$(SSH_HOST) '
+		set -e; \
+		cd $(DEPLOY_PATH); \
+		echo "- Loading app image..."; \
+		docker load < $(APP_IMAGE_NAME).tar; \
+		echo "- Loading nginx image..."; \
+		docker load < $(NGINX_IMAGE_NAME).tar; \
+		echo "- Removing temporary .tar files..."; \
+		rm $(APP_IMAGE_NAME).tar $(NGINX_IMAGE_NAME).tar; \
+		echo "- Restarting services with docker-compose..."; \
+		docker-compose --env-file .env up -d --force-recreate; \
+	'
+	@echo "✅ Deployment finished successfully!"
