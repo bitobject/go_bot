@@ -68,11 +68,12 @@ func (c *Client) login(ctx context.Context) error {
 	}
 	defer resp.Body.Close()
 
-	c.logger.Debug("Login response received", "status", resp.Status, "headers", resp.Header)
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
+	c.logger.Debug("Login response received", "status", resp.Status, "headers", resp.Header, "body", string(body))
+	
 	var loginResp loginResponse
 	err = json.Unmarshal(body, &loginResp)
 	if err != nil {
