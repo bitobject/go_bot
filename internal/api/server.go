@@ -18,7 +18,16 @@ import (
 	"gorm.io/gorm"
 )
 
+const (
+	// APIPrefix is the prefix for all API routes.
+	APIPrefix = "/api"
+	// WebhookPath is the path for the Telegram webhook, relative to APIPrefix.
+	WebhookPath = "/webhook"
+)
+
 // Server is the main application server.
+
+
 type Server struct {
 	router     *gin.Engine
 	logger     *slog.Logger
@@ -65,7 +74,7 @@ func (s *Server) setupRouter() {
 	s.router.GET("/ready", healthHandler.ReadinessCheck)
 
 	// API group with rate limiting
-	api := s.router.Group("/api")
+	api := s.router.Group(APIPrefix)
 	api.Use(middleware.RateLimitMiddleware(s.cfg))
 	{
 		// Services
@@ -77,7 +86,7 @@ func (s *Server) setupRouter() {
 		webhookHandler := handlers.NewWebhookHandler(webhookService, s.logger, s.xuiService) // Добавлен логгер
 
 		// Webhook for Telegram
-		api.POST("/webhook", apierror.ErrorWrapper(webhookHandler.HandleWebhook))
+		api.POST(WebhookPath, apierror.ErrorWrapper(webhookHandler.HandleWebhook))
 
 		// Admin routes
 		admin := api.Group("/admin")

@@ -64,8 +64,9 @@ func main() {
 	slog.Info("XUI service initialized")
 
 	// 7. Настройка вебхука
-	bot.SetupWebhook(tgBot, cfg.WebhookURL)
-	slog.Info("Telegram webhook set successfully")
+	fullWebhookURL := cfg.BaseURL + api.APIPrefix + api.WebhookPath
+	bot.SetupWebhook(tgBot, fullWebhookURL)
+	slog.Info("Telegram webhook set successfully", "url", fullWebhookURL)
 
 	// 7. Создание и запуск сервера с Graceful Shutdown
 	server := api.NewServer(logger, db, tgBot, cfg, xuiService)
