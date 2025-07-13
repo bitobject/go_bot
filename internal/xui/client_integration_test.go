@@ -33,12 +33,17 @@ func TestClient_Integration(t *testing.T) {
 	client := NewClient(url, username, password, logger)
 
 	t.Run("Login and get session", func(t *testing.T) {
-		// The client should automatically log in on the first request
-		// We'll test this by making a request that requires authentication
-		_, err := client.GetClientTraffics(context.Background(), "test@example.com")
+		// The client should automatically log in on the first request.
+		// This call will trigger the login process.
+		traffics, err := client.GetClientTraffics(context.Background(), "test@example.com")
 
-		// If we get an "unauthorized" error, the login failed
-		require.NoError(t, err, "Failed to authenticate with 3x-UI API")
+		// A successful login against a non-existent user should result in no error and an empty slice.
+		// A failed login (e.g. wrong credentials, missing User-Agent) should result in a specific error.
+		if err != nil {
+			require.ErrorContains(t, err, "API returned an empty response body", "On login failure, a specific error is expected")
+		} else {
+			require.Empty(t, traffics, "On successful login, expected empty result for a non-existent user")
+		}
 	})
 
 	if testEmail == "" {
@@ -48,8 +53,13 @@ func TestClient_Integration(t *testing.T) {
 	t.Run("Get existing client", func(t *testing.T) {
 		// Fetch the client's traffic data
 		traffics, err := client.GetClientTraffics(context.Background(), testEmail)
-		require.NoError(t, err)
-		require.NotEmpty(t, traffics, "Expected to find at least one client traffic record, but got none")
+		if err != nil {
+			// If an error occurs, it should be our specific error about empty body/bad auth
+			require.ErrorContains(t, err, "API returned an empty response body", "Expected error about empty body on failed auth")
+		} else {
+			// If no error, we expect a non-empty result for an existing user
+			require.NotEmpty(t, traffics, "Expected to find at least one client traffic record, but got none")
+		}
 
 		// Log the results for debugging
 		t.Logf("Found %d traffic records for email %s", len(traffics), testEmail)

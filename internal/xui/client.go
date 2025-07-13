@@ -62,6 +62,7 @@ func (c *Client) login(ctx context.Context) error {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return err
@@ -136,7 +137,7 @@ func (c *Client) GetClientTraffics(ctx context.Context, email string) ([]ClientT
 	c.logger.Debug("X-UI API response", "email", email, "body", string(body))
 
 	if len(body) == 0 {
-		return nil, errors.New("empty response from API")
+		return nil, errors.New("API returned an empty response body, check credentials or User-Agent header")
 	}
 
 	type apiResponse struct {
