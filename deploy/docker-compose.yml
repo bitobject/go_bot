@@ -28,6 +28,8 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    ports:
+      - "127.0.0.1:8080:8080" # Expose app port only to the host for Nginx
     depends_on:
       postgres:
         condition: service_healthy
@@ -49,25 +51,6 @@ services:
     env_file:
       - .env
 
-  # Nginx Reverse Proxy with SSL
-  nginx:
-    build:
-      context: ./nginx
-      dockerfile: Dockerfile
-    container_name: ${NGINX_CONTAINER_NAME}
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      # Конфигурация Nginx теперь полностью запекается в образ.
-      # Том для конфигов удален, чтобы избежать перезаписи исправлений старыми файлами с хоста.
-      - ./ssl:/etc/nginx/ssl:ro
-      - nginx_logs:/var/log/nginx
-    depends_on:
-      - app
-    networks:
-      - goooo_network
     healthcheck:
       # This healthcheck now correctly uses wget (installed in the custom Dockerfile)
       # and points to the actual health endpoint proxied by Nginx.
@@ -75,8 +58,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    env_file:
-      - .env
 
 volumes:
   postgres_data:
