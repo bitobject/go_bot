@@ -10,6 +10,7 @@ import (
 	"go-bot/internal/api/handlers"
 	"go-bot/internal/api/middleware"
 	"go-bot/internal/config"
+	"go-bot/internal/service"
 	"go-bot/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -24,20 +25,22 @@ type Server struct {
 	db         *gorm.DB
 	bot        *tgbotapi.BotAPI
 	cfg        *config.Config
+	xuiService *service.XUIService
 	httpServer *http.Server
 }
 
 // NewServer creates a new server instance.
-func NewServer(logger *slog.Logger, db *gorm.DB, bot *tgbotapi.BotAPI, cfg *config.Config) *Server {
+func NewServer(logger *slog.Logger, db *gorm.DB, bot *tgbotapi.BotAPI, cfg *config.Config, xuiService *service.XUIService) *Server {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.Default()
 
 	server := &Server{
-		router: router,
-		logger: logger,
-		db:     db,
-		bot:    bot,
-		cfg:    cfg,
+		router:     router,
+		logger:     logger,
+		db:         db,
+		bot:        bot,
+		cfg:        cfg,
+		xuiService: xuiService,
 		httpServer: &http.Server{
 			Addr:    fmt.Sprintf("%s:%s", cfg.Host, cfg.Port),
 			Handler: router,
@@ -71,7 +74,7 @@ func (s *Server) setupRouter() {
 
 		// Handlers
 		adminHandler := handlers.NewAdminHandler(adminService, s.logger, s.cfg.JWTSecretKey)
-		webhookHandler := handlers.NewWebhookHandler(webhookService, s.logger) // Добавлен логгер
+		webhookHandler := handlers.NewWebhookHandler(webhookService, s.logger, s.xuiService) // Добавлен логгер
 
 		// Webhook for Telegram
 		api.POST("/webhook", apierror.ErrorWrapper(webhookHandler.HandleWebhook))

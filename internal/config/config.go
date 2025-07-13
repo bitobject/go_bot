@@ -35,6 +35,11 @@ type Config struct {
 	RateLimitWindowMinutes int    `mapstructure:"RATE_LIMIT_WINDOW_MINUTES" validate:"required,gte=1"`
 	JWTSecretKey           string `mapstructure:"JWT_SECRET_KEY"       validate:"required,min=32"`
 	JWTExpiresIn           int    `mapstructure:"JWT_EXPIRES_IN_HOURS"   validate:"gte=1"`
+
+	// 3x-UI API
+	XUIURL      string `mapstructure:"XUI_URL"       validate:"required,url"`
+	XUIUsername string `mapstructure:"XUI_USERNAME"  validate:"required"`
+	XUIPassword string `mapstructure:"XUI_PASSWORD"  validate:"required"`
 }
 
 var (
@@ -100,4 +105,7 @@ func bindEnvs() {
 	viper.BindEnv("WRITE_TIMEOUT", "WRITE_TIMEOUT")
 	viper.BindEnv("IDLE_TIMEOUT", "IDLE_TIMEOUT")
 	viper.BindEnv("GRACEFUL_SHUTDOWN_TIMEOUT", "GRACEFUL_SHUTDOWN_TIMEOUT")
+	viper.BindEnv("XUI_URL", "XUI_URL")
+	viper.BindEnv("XUI_USERNAME", "XUI_USERNAME")
+	viper.BindEnv("XUI_PASSWORD", "XUI_PASSWORD")
 }

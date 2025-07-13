@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"go-bot/internal/api/apierror"
+	"go-bot/internal/service"
 	"go-bot/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -15,13 +16,15 @@ import (
 type WebhookHandler struct {
 	webhookService services.WebhookServiceInterface
 	logger         *slog.Logger
+	xuiService     *service.XUIService
 }
 
 // NewWebhookHandler creates a new WebhookHandler.
-func NewWebhookHandler(webhookService services.WebhookServiceInterface, logger *slog.Logger) *WebhookHandler {
+func NewWebhookHandler(webhookService services.WebhookServiceInterface, logger *slog.Logger, xuiService *service.XUIService) *WebhookHandler {
 	return &WebhookHandler{
 		webhookService: webhookService,
 		logger:         logger,
+		xuiService:     xuiService,
 	}
 }
 
@@ -33,7 +36,7 @@ func (h *WebhookHandler) HandleWebhook(c *gin.Context) error {
 		return apierror.New(http.StatusBadRequest, "invalid request body")
 	}
 
-	if err := h.webhookService.ProcessUpdate(c.Request.Context(), update); err != nil {
+	if err := h.webhookService.ProcessUpdate(c.Request.Context(), update, h.xuiService); err != nil {
 		// The service layer should handle its own logging of the error.
 		return apierror.New(http.StatusInternalServerError, "failed to process update")
 	}

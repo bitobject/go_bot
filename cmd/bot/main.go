@@ -14,6 +14,7 @@ import (
 	"go-bot/internal/config"
 	"go-bot/internal/database"
 
+		"go-bot/internal/service"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/joho/godotenv"
 )
@@ -49,12 +50,16 @@ func main() {
 	}
 	slog.Info("Telegram bot authorized", "bot_username", tgBot.Self.UserName)
 
-	// 6. Настройка вебхука
+	// 6. Инициализация сервиса для работы с 3x-ui
+	xuiService := service.NewXUIService(cfg)
+	slog.Info("XUI service initialized")
+
+	// 7. Настройка вебхука
 	bot.SetupWebhook(tgBot, cfg.WebhookURL)
 	slog.Info("Telegram webhook set successfully")
 
 	// 7. Создание и запуск сервера с Graceful Shutdown
-	server := api.NewServer(logger, db, tgBot, cfg)
+	server := api.NewServer(logger, db, tgBot, cfg, xuiService)
 
 	go func() {
 		if err := server.Start(); err != nil && err != http.ErrServerClosed {
