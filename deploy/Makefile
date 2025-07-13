@@ -40,9 +40,9 @@ rebuild-app: ## Пересобрать образ только для серви
 	@echo "🛠️  Rebuilding app service image..."
 	@$(COMPOSE_CMD) build app
 
-rebuild-nginx: ## Пересобрать и перезапустить сервис nginx
-	@echo "🔄 Rebuilding and restarting nginx service..."
-	@$(COMPOSE_CMD) up -d --build nginx
+rebuild-nginx: ## Пересобрать образ только для сервиса 'nginx'
+	@echo "🛠️  Rebuilding nginx service image..."
+	@$(COMPOSE_CMD) build nginx
 
 build: ## Собрать или пересобрать образы сервисов
 	@echo "🛠️ Building images..."

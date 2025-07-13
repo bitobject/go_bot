@@ -51,7 +51,7 @@ func main() {
 	slog.Info("Telegram bot authorized", "bot_username", tgBot.Self.UserName)
 
 	// 6. Инициализация сервиса для работы с 3x-ui
-	xuiService := service.NewXUIService(cfg)
+	xuiService := service.NewXUIService(cfg, logger)
 	slog.Info("XUI service initialized")
 
 	// 7. Настройка вебхука

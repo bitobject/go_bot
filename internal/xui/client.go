@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -20,6 +21,7 @@ type Client struct {
 	password       string
 	sessionCookie  *http.Cookie
 	sessionExpires time.Time
+	logger         *slog.Logger
 }
 
 type loginResponse struct {
@@ -42,12 +44,13 @@ type ClientTraffic struct {
 }
 
 // NewClient creates a new 3x-ui API client.
-func NewClient(url, username, password string) *Client {
+func NewClient(url, username, password string, logger *slog.Logger) *Client {
 	return &Client{
 		httpClient: &http.Client{Timeout: 10 * time.Second},
 		url:        url,
 		username:   username,
 		password:   password,
+		logger:     logger,
 	}
 }
 
@@ -125,6 +128,12 @@ func (c *Client) GetClientTraffics(ctx context.Context, email string) ([]ClientT
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	c.logger.Debug("X-UI API response", "email", email, "body", string(body))
+
+	if len(body) == 0 {
+		return nil, errors.New("empty response from API")
 	}
 
 	type apiResponse struct {

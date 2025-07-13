@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"log/slog"
 
 	"go-bot/internal/config"
 	"go-bot/internal/xui"
@@ -10,13 +11,15 @@ import (
 // XUIService provides a high-level interface for interacting with the 3x-ui API.
 type XUIService struct {
 	client *xui.Client
+	logger *slog.Logger
 }
 
 // NewXUIService creates a new XUIService.
-func NewXUIService(cfg *config.Config) *XUIService {
-	client := xui.NewClient(cfg.XUIURL, cfg.XUIUsername, cfg.XUIPassword)
+func NewXUIService(cfg *config.Config, logger *slog.Logger) *XUIService {
+	client := xui.NewClient(cfg.XUIURL, cfg.XUIUsername, cfg.XUIPassword, logger)
 	return &XUIService{
 		client: client,
+		logger: logger,
 	}
 }
 
