@@ -125,7 +125,7 @@ func handleGetClientCommand(ctx context.Context, message *tgbotapi.Message, bot 
 	clientTraffics, err := xuiService.GetClientTraffics(ctx, email)
 	if err != nil {
 		log.Printf("Error getting client traffics: %v", err)
-		msg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("Не удалось получить данные для клиента %s: %v", email, err))
+		msg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("Не удалось получить данные для клиента %s. Возможно, сервис временно недоступен.", email))
 		bot.Send(msg)
 		return
 	}

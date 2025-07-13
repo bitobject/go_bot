@@ -4,6 +4,7 @@ package xui
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"os"
 	"testing"
@@ -12,33 +13,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestClient_Integration is an integration test that verifies the XUI client can
-// successfully authenticate and fetch data from a live 3x-UI service.
 func TestClient_Integration(t *testing.T) {
-	// Get configuration from environment variables
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode.")
+	}
+
 	url := os.Getenv("XUI_URL")
 	username := os.Getenv("XUI_USERNAME")
 	password := os.Getenv("XUI_PASSWORD")
 	testEmail := os.Getenv("XUI_TEST_EMAIL")
 
-	// Skip the test if the required environment variables are not set
 	if url == "" || username == "" || password == "" {
-		t.Skip("XUI_URL, XUI_USERNAME, and XUI_PASSWORD environment variables must be set for integration tests")
+		t.Skip("XUI_URL, XUI_USERNAME, or XUI_PASSWORD not set, skipping integration test.")
 	}
 
-	// Create a new logger
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	// Use a discard logger to keep test output clean from client's internal logs
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	// Create a new client
 	client := NewClient(url, username, password, logger)
 
 	t.Run("Login and get session", func(t *testing.T) {
-		// The client should automatically log in on the first request.
-		// This call will trigger the login process.
 		traffics, err := client.GetClientTraffics(context.Background(), "test@example.com")
-
-		// A successful login against a non-existent user should result in no error and an empty slice.
-		// A failed login (e.g. wrong credentials, missing User-Agent) should result in a specific error.
 		if err != nil {
 			require.ErrorContains(t, err, "API returned an empty response body", "On login failure, a specific error is expected")
 		} else {
@@ -51,40 +46,26 @@ func TestClient_Integration(t *testing.T) {
 	}
 
 	t.Run("Get existing client", func(t *testing.T) {
-		// Fetch the client's traffic data
 		traffics, err := client.GetClientTraffics(context.Background(), testEmail)
-		if err != nil {
-			// If an error occurs, it should be our specific error about empty body/bad auth
-			require.ErrorContains(t, err, "API returned an empty response body", "Expected error about empty body on failed auth")
-		} else {
-			// If no error, we expect a non-empty result for an existing user
-			require.NotEmpty(t, traffics, "Expected to find at least one client traffic record, but got none")
-		}
+		require.NoError(t, err)
+		require.NotEmpty(t, traffics, "Expected to find at least one client traffic record, but got none")
 
-		// Log the results for debugging
-		t.Logf("Found %d traffic records for email %s", len(traffics), testEmail)
-		for i, traffic := range traffics {
-			t.Logf("Traffic %d: %+v", i+1, traffic)
-		}
-
-		// If we found the client, log some details
+		// If we found the client, log some details in a readable format
 		if len(traffics) > 0 {
 			traffic := traffics[0]
-			t.Logf("Client %s: Up: %d MB, Down: %d MB, Total: %d MB, Expires: %s",
+			t.Logf("Client %s: Up: %.2f MB, Down: %.2f MB, Total: %.2f GB, Expires: %s",
 				traffic.Email,
-				traffic.Up/(1024*1024),
-				traffic.Down/(1024*1024),
-				traffic.Total/(1024*1024),
-				time.Unix(traffic.ExpiryTime/1000, 0).Format(time.RFC3339),
+				float64(traffic.Up)/(1024*1024),
+				float64(traffic.Down)/(1024*1024),
+				float64(traffic.Total)/(1024*1024*1024),
+				time.Unix(traffic.ExpiryTime/1000, 0).Format("2006-01-02"),
 			)
 		}
 	})
 
 	t.Run("Get non-existent client", func(t *testing.T) {
-		// Test with a non-existent email that should return an empty result
-		nonExistentEmail := "nonexistent-email-12345@example.com"
-		traffics, err := client.GetClientTraffics(context.Background(), nonExistentEmail)
+		traffics, err := client.GetClientTraffics(context.Background(), "nonexistent-email-12345@example.com")
 		require.NoError(t, err)
-		require.Empty(t, traffics, "Expected no traffic records for a non-existent client")
+		require.Empty(t, traffics, "Expected to find no traffic records for a non-existent client")
 	})
 }

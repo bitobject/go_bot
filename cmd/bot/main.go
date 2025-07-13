@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -14,7 +15,7 @@ import (
 	"go-bot/internal/config"
 	"go-bot/internal/database"
 
-		"go-bot/internal/service"
+	"go-bot/internal/service"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/joho/godotenv"
 )
@@ -31,6 +32,14 @@ func main() {
 
 	// 3. Загрузка и валидация конфигурации
 	cfg := config.Get()
+
+	// Логирование конфигурации для отладки (с маскированием секретов)
+	safeCfg := *cfg
+	safeCfg.TelegramToken = "***"
+	safeCfg.DBPassword = "***"
+	safeCfg.JWTSecretKey = "***"
+	safeCfg.XUIPassword = "***"
+	slog.Info("Loaded configuration", "config", fmt.Sprintf("%+v", safeCfg))
 
 	// 4. Подключение к базе данных
 	db := database.Init(cfg)
