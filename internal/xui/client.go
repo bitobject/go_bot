@@ -67,6 +67,8 @@ func (c *Client) login(ctx context.Context) error {
 		return err
 	}
 	defer resp.Body.Close()
+
+	c.logger.Debug("Login response received", "status", resp.Status, "headers", resp.Header)
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
@@ -80,7 +82,7 @@ func (c *Client) login(ctx context.Context) error {
 		return errors.New(loginResp.Msg)
 	}
 	for _, cookie := range resp.Cookies() {
-		if cookie.Name == "session" {
+		if cookie.Name == "3x-ui" {
 			c.sessionCookie = cookie
 			c.sessionExpires = cookie.Expires
 			break // Found the cookie, no need to loop further
@@ -137,9 +139,9 @@ func (c *Client) GetClientTraffics(ctx context.Context, email string) ([]ClientT
 	}
 
 	type apiResponse struct {
-		Success bool             `json:"success"`
-		Msg     string           `json:"msg"`
-		Obj     []ClientTraffic `json:"obj"`
+		Success bool            `json:"success"`
+		Msg     string          `json:"msg"`
+		Obj     json.RawMessage `json:"obj"`
 	}
 
 	var apiResp apiResponse
@@ -151,5 +153,23 @@ func (c *Client) GetClientTraffics(ctx context.Context, email string) ([]ClientT
 		return nil, fmt.Errorf("api error: %s", apiResp.Msg)
 	}
 
-	return apiResp.Obj, nil
+	// Handle null or empty object case
+	if string(apiResp.Obj) == "null" || len(apiResp.Obj) == 0 {
+		return []ClientTraffic{}, nil
+	}
+
+	var traffics []ClientTraffic
+	// Try to unmarshal as an array first
+	if err := json.Unmarshal(apiResp.Obj, &traffics); err != nil {
+		// If it's not an array, try to unmarshal as a single object
+		var singleTraffic ClientTraffic
+		if err2 := json.Unmarshal(apiResp.Obj, &singleTraffic); err2 != nil {
+			// If both fail, return the original array unmarshal error
+			return nil, fmt.Errorf("failed to unmarshal 'obj' field from API response: %w", err)
+		}
+		// If single object unmarshal succeeds, wrap it in a slice
+		traffics = []ClientTraffic{singleTraffic}
+	}
+
+	return traffics, nil
 }
