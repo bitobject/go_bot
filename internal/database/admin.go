@@ -58,7 +58,7 @@ func (s *AdminService) CreateAdmin(login, password string) (*Admin, error) {
 // AuthenticateAdmin authenticates an admin with login and password
 func (s *AdminService) AuthenticateAdmin(login, password string) (*Admin, error) {
 	var admin Admin
-	
+
 	// Find admin by login (case-insensitive due to CITEXT)
 	if err := s.db.Where("login = ?", login).First(&admin).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -100,12 +100,12 @@ func (s *AdminService) AuthenticateAdmin(login, password string) (*Admin, error)
 // incrementFailedAttempts increments failed login attempts and locks account if needed
 func (s *AdminService) incrementFailedAttempts(admin *Admin) {
 	admin.FailedLoginAttempts++
-	
+
 	if admin.FailedLoginAttempts >= MaxLoginAttempts {
 		lockoutTime := time.Now().Add(LockoutDuration)
 		admin.LockedUntil = &lockoutTime
 	}
-	
+
 	s.db.Save(admin)
 }
 
@@ -176,7 +176,7 @@ func (s *AdminService) UnlockAdmin(adminID uint) error {
 		"failed_login_attempts": 0,
 		"locked_until":          nil,
 	}
-	
+
 	if err := s.db.Model(&Admin{}).Where("id = ?", adminID).Updates(updates).Error; err != nil {
 		return fmt.Errorf("failed to unlock admin: %w", err)
 	}
@@ -187,7 +187,7 @@ func (s *AdminService) UnlockAdmin(adminID uint) error {
 func GenerateSecurePassword(length int) (string, error) {
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*"
 	password := make([]byte, length)
-	
+
 	for i := range password {
 		randomByte := make([]byte, 1)
 		if _, err := rand.Read(randomByte); err != nil {
@@ -195,6 +195,6 @@ func GenerateSecurePassword(length int) (string, error) {
 		}
 		password[i] = charset[randomByte[0]%byte(len(charset))]
 	}
-	
+
 	return string(password), nil
-} 
+}

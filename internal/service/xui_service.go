@@ -8,6 +8,12 @@ import (
 	"go-bot/internal/xui"
 )
 
+// ClientTrafficProvider defines the interface for services that can fetch client traffic data.
+// This abstraction is crucial for decoupling and testing the bot handlers.
+type ClientTrafficProvider interface {
+	GetClientTraffics(ctx context.Context, email string) ([]xui.ClientTraffic, error)
+}
+
 // XUIService provides a high-level interface for interacting with the 3x-ui API.
 type XUIService struct {
 	client *xui.Client

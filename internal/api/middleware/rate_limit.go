@@ -28,10 +28,10 @@ func NewRateLimiter(limit int, window time.Duration) *RateLimiter {
 func (rl *RateLimiter) RateLimit() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		clientIP := c.ClientIP()
-		
+
 		rl.mutex.Lock()
 		now := time.Now()
-		
+
 		// Очищаем старые запросы
 		if requests, exists := rl.requests[clientIP]; exists {
 			var validRequests []time.Time
@@ -42,22 +42,22 @@ func (rl *RateLimiter) RateLimit() gin.HandlerFunc {
 			}
 			rl.requests[clientIP] = validRequests
 		}
-		
+
 		// Проверяем лимит
 		if len(rl.requests[clientIP]) >= rl.limit {
 			rl.mutex.Unlock()
 			c.JSON(http.StatusTooManyRequests, gin.H{
-				"error": "rate limit exceeded",
+				"error":       "rate limit exceeded",
 				"retry_after": rl.window.Seconds(),
 			})
 			c.Abort()
 			return
 		}
-		
+
 		// Добавляем текущий запрос
 		rl.requests[clientIP] = append(rl.requests[clientIP], now)
 		rl.mutex.Unlock()
-		
+
 		c.Next()
 	}
 }
@@ -69,4 +69,4 @@ func RateLimitMiddleware(cfg *config.Config) gin.HandlerFunc {
 		time.Duration(cfg.RateLimitWindowMinutes)*time.Minute,
 	)
 	return limiter.RateLimit()
-} 
+}

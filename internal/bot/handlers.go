@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"go-bot/internal/service"
-	"go-bot/internal/xui"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"gorm.io/gorm"
@@ -39,7 +38,7 @@ func SetupWebhook(bot *tgbotapi.BotAPI, webhookURL string) {
 }
 
 // ProcessUpdate обрабатывает входящие update от Telegram
-func ProcessUpdate(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.BotAPI, db *gorm.DB, xuiService *service.XUIService) {
+func ProcessUpdate(ctx context.Context, update tgbotapi.Update, bot BotSender, db *gorm.DB, xuiService service.ClientTrafficProvider) {
 	if update.Message != nil {
 		handleMessage(ctx, update.Message, bot, db, xuiService)
 	}
@@ -50,7 +49,7 @@ func ProcessUpdate(ctx context.Context, update tgbotapi.Update, bot *tgbotapi.Bo
 	}
 }
 
-func handleMessage(ctx context.Context, message *tgbotapi.Message, bot *tgbotapi.BotAPI, db *gorm.DB, xuiService *service.XUIService) {
+func handleMessage(ctx context.Context, message *tgbotapi.Message, bot BotSender, db *gorm.DB, xuiService service.ClientTrafficProvider) {
 	// Ignore messages without a sender
 	if message.From == nil {
 		return
@@ -72,7 +71,7 @@ func handleMessage(ctx context.Context, message *tgbotapi.Message, bot *tgbotapi
 	bot.Send(msg)
 }
 
-func handleCommand(ctx context.Context, message *tgbotapi.Message, bot *tgbotapi.BotAPI, db *gorm.DB, xuiService *service.XUIService) {
+func handleCommand(ctx context.Context, message *tgbotapi.Message, bot BotSender, db *gorm.DB, xuiService service.ClientTrafficProvider) {
 	userInfo := formatUserInfo(message.From)
 
 	switch message.Command() {
@@ -92,10 +91,19 @@ func handleCommand(ctx context.Context, message *tgbotapi.Message, bot *tgbotapi
 	}
 }
 
-func handleCallbackQuery(callback *tgbotapi.CallbackQuery, bot *tgbotapi.BotAPI, db *gorm.DB) {
+// BotSender defines the interface for sending messages and making requests, allowing for mocking in tests.
+type BotSender interface {
+	Send(c tgbotapi.Chattable) (tgbotapi.Message, error)
+	Request(c tgbotapi.Chattable) (*tgbotapi.APIResponse, error)
+}
+
+func handleCallbackQuery(callback *tgbotapi.CallbackQuery, bot BotSender, db *gorm.DB) {
 	// Handle callback queries
 	callbackConfig := tgbotapi.NewCallback(callback.ID, "Callback received!")
-	bot.Request(callbackConfig)
+	_, err := bot.Request(callbackConfig)
+	if err != nil {
+		log.Printf("ERROR: failed to send callback response: %v", err)
+	}
 
 	// You might want to log the callback data
 	log.Printf("Callback from %s: %s", callback.From.UserName, callback.Data)
@@ -114,7 +122,8 @@ func saveMessage(message *tgbotapi.Message, db *gorm.DB) {
 }
 
 // formatUserInfo creates a user-friendly string from a User object.
-func handleGetClientCommand(ctx context.Context, message *tgbotapi.Message, bot *tgbotapi.BotAPI, xuiService *service.XUIService) {
+// handleGetClientCommand processes the /getclient command and sends the data as a formatted table.
+func handleGetClientCommand(ctx context.Context, message *tgbotapi.Message, bot BotSender, xuiService service.ClientTrafficProvider) {
 	email := strings.TrimSpace(message.CommandArguments())
 	if email == "" {
 		msg := tgbotapi.NewMessage(message.Chat.ID, "Пожалуйста, укажите email после команды. Пример: /getclient user@example.com")
@@ -124,8 +133,8 @@ func handleGetClientCommand(ctx context.Context, message *tgbotapi.Message, bot 
 
 	clientTraffics, err := xuiService.GetClientTraffics(ctx, email)
 	if err != nil {
-		log.Printf("Error getting client traffics: %v", err)
-		msg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("Не удалось получить данные для клиента %s. Возможно, сервис временно недоступен.", email))
+		log.Printf("ERROR: Failed to get client traffics for email [%s]: %v", email, err)
+		msg := tgbotapi.NewMessage(message.Chat.ID, "Произошла ошибка при получении данных. Пожалуйста, попробуйте позже.")
 		bot.Send(msg)
 		return
 	}
@@ -136,32 +145,39 @@ func handleGetClientCommand(ctx context.Context, message *tgbotapi.Message, bot 
 		return
 	}
 
-	var responseText strings.Builder
-	responseText.WriteString(fmt.Sprintf("<b>Данные для клиента %s:</b>\n\n", email))
-	for _, traffic := range clientTraffics {
-		responseText.WriteString(formatClientTraffic(traffic))
-	}
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("<b>Данные для клиента:</b> <code>%s</code>\n", email))
+	sb.WriteString("<pre>")
+	sb.WriteString(fmt.Sprintf("%-22s | %-13s | %-10s | %s\n", "Email", "Usage (GB)", "Expiry", "Status"))
+	sb.WriteString(strings.Repeat("-", 56) + "\n")
 
-	msg := tgbotapi.NewMessage(message.Chat.ID, responseText.String())
+	for _, traffic := range clientTraffics {
+		upGB := float64(traffic.Up) / (1024 * 1024 * 1024)
+		downGB := float64(traffic.Down) / (1024 * 1024 * 1024)
+		totalGB := float64(traffic.Total) / (1024 * 1024 * 1024)
+		usageStr := fmt.Sprintf("%.2f/%.2f", upGB+downGB, totalGB)
+
+		expiry := time.Unix(0, traffic.ExpiryTime*int64(time.Millisecond))
+		expiryStr := expiry.Format("02.01.2006")
+
+		status := "❌"
+		if traffic.Enable {
+			status = "✅"
+		}
+
+		// Truncate email if it's too long
+		displayEmail := traffic.Email
+		if len(displayEmail) > 20 {
+			displayEmail = displayEmail[:19] + ".."
+		}
+
+		sb.WriteString(fmt.Sprintf("%-22s | %-13s | %-10s | %s\n", displayEmail, usageStr, expiryStr, status))
+	}
+	sb.WriteString("</pre>")
+
+	msg := tgbotapi.NewMessage(message.Chat.ID, sb.String())
 	msg.ParseMode = tgbotapi.ModeHTML
 	bot.Send(msg)
-}
-
-func formatClientTraffic(traffic xui.ClientTraffic) string {
-	// Convert Unix timestamp (milliseconds) to time.Time
-	expiry := time.Unix(0, traffic.ExpiryTime*int64(time.Millisecond))
-
-	// Convert bytes to a more readable format (e.g., GB)
-	upGB := float64(traffic.Up) / (1024 * 1024 * 1024)
-	downGB := float64(traffic.Down) / (1024 * 1024 * 1024)
-	totalGB := float64(traffic.Total) / (1024 * 1024 * 1024)
-
-	return fmt.Sprintf("<b>Email:</b> %s\n<b>Статус:</b> %s\n<b>Трафик:</b> %.2f / %.2f GB\n<b>Сброс:</b> %s\n\n",
-		traffic.Email,
-		map[bool]string{true: "✅ Включен", false: "❌ Отключен"}[traffic.Enable],
-		upGB+downGB,
-		totalGB,
-		expiry.Format("02.01.2006"))
 }
 
 // formatUserInfo creates a user-friendly string from a User object.

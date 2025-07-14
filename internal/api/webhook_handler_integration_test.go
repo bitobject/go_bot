@@ -24,7 +24,8 @@ func TestWebhookHandler_Integration_GetClientCommand(t *testing.T) {
 	require.NoError(t, err, "Failed to load .env file")
 
 	// Инициализируем конфигурацию
-	cfg := config.Get()
+	cfg, err := config.Load("../../deploy/.env")
+	require.NoError(t, err, "Failed to load .env config")
 
 	// Проверяем, что необходимые для теста переменные установлены
 	require.NotEmpty(t, cfg.XUIURL, "XUI_URL must be set in .env for this test")

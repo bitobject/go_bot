@@ -23,8 +23,6 @@ func Init(cfg *config.Config) *gorm.DB {
 		log.Panic("failed to connect database:", err)
 	}
 
-
-
 	return db
 }
 
@@ -33,4 +31,4 @@ func Close(db *gorm.DB) {
 	if err == nil {
 		sqlDB.Close()
 	}
-} 
+}

@@ -37,7 +37,7 @@ func NewAdminService(db *gorm.DB, logger *slog.Logger) AdminServiceInterface {
 // Authenticate checks admin credentials and returns the admin if successful.
 func (s *AdminService) Authenticate(ctx context.Context, login, password string) (*database.Admin, error) {
 	var admin database.Admin
-		if err := s.db.WithContext(ctx).Where("login = ?", login).First(&admin).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("login = ?", login).First(&admin).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("invalid credentials")
 		}
@@ -45,7 +45,7 @@ func (s *AdminService) Authenticate(ctx context.Context, login, password string)
 		return nil, err
 	}
 
-		if !auth.CheckPasswordHash(password, admin.HashedPassword) {
+	if !auth.CheckPasswordHash(password, admin.HashedPassword) {
 		return nil, errors.New("invalid credentials")
 	}
 
@@ -55,7 +55,7 @@ func (s *AdminService) Authenticate(ctx context.Context, login, password string)
 // GetProfile retrieves an admin's profile by their ID.
 func (s *AdminService) GetProfile(ctx context.Context, adminID uint) (*database.Admin, error) {
 	var admin database.Admin
-		if err := s.db.WithContext(ctx).First(&admin, adminID).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&admin, adminID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("admin with ID %d not found", adminID)
 		}
@@ -77,7 +77,7 @@ func (s *AdminService) ChangePassword(ctx context.Context, adminID uint, oldPass
 			return err
 		}
 
-				if !auth.CheckPasswordHash(oldPassword, admin.HashedPassword) {
+		if !auth.CheckPasswordHash(oldPassword, admin.HashedPassword) {
 			return errors.New("incorrect old password")
 		}
 
@@ -87,7 +87,7 @@ func (s *AdminService) ChangePassword(ctx context.Context, adminID uint, oldPass
 			return errors.New("failed to update password")
 		}
 
-				if err := tx.Model(&admin).Update("hashed_password", hashedPassword).Error; err != nil {
+		if err := tx.Model(&admin).Update("hashed_password", hashedPassword).Error; err != nil {
 			s.logger.Error("failed to update password in db", "error", err, "adminID", adminID)
 			return errors.New("failed to update password")
 		}

@@ -50,4 +50,3 @@ func AuthMiddleware(jwtSecretKey string) gin.HandlerFunc {
 		c.Next()
 	}
 }
- 

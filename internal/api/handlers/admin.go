@@ -35,7 +35,7 @@ func NewAdminHandler(adminService services.AdminServiceInterface, logger *slog.L
 
 // LoginRequest represents the request body for admin login.
 type LoginRequest struct {
-		Login    string `json:"login" validate:"required,min=3"`
+	Login    string `json:"login" validate:"required,min=3"`
 	Password string `json:"password" validate:"required,min=8"`
 }
 
@@ -99,7 +99,7 @@ func (h *AdminHandler) GetProfile(c *gin.Context) error {
 
 // ChangePasswordRequest represents the request body for changing password.
 type ChangePasswordRequest struct {
-		OldPassword string `json:"old_password" validate:"required"`
+	OldPassword string `json:"old_password" validate:"required"`
 	NewPassword string `json:"new_password" validate:"required,min=8"`
 }
 

@@ -27,7 +27,6 @@ const (
 
 // Server is the main application server.
 
-
 type Server struct {
 	router     *gin.Engine
 	logger     *slog.Logger
@@ -64,7 +63,7 @@ func NewServer(logger *slog.Logger, db *gorm.DB, bot *tgbotapi.BotAPI, cfg *conf
 func (s *Server) setupRouter() {
 	// Middlewares
 	s.router.Use(middleware.LoggerInjector(s.logger)) // Внедряем логгер в контекст
-	s.router.Use(middleware.SlogLogger())    // Используем логгер для запросов
+	s.router.Use(middleware.SlogLogger())             // Используем логгер для запросов
 	s.router.Use(gin.Recovery())
 
 	// Health checks are public
@@ -77,13 +76,12 @@ func (s *Server) setupRouter() {
 	api := s.router.Group(APIPrefix)
 	api.Use(middleware.RateLimitMiddleware(s.cfg))
 	{
-		// Services
+		// Создаем сервисы
 		adminService := services.NewAdminService(s.db, s.logger)
-		webhookService := services.NewWebhookService(s.db, s.bot, s.logger)
 
 		// Handlers
 		adminHandler := handlers.NewAdminHandler(adminService, s.logger, s.cfg.JWTSecretKey)
-		webhookHandler := handlers.NewWebhookHandler(webhookService, s.logger, s.xuiService) // Добавлен логгер
+		webhookHandler := handlers.NewWebhookHandler(s.cfg, s.logger, s.bot, s.db)
 
 		// Webhook for Telegram
 		api.POST(WebhookPath, apierror.ErrorWrapper(webhookHandler.HandleWebhook))

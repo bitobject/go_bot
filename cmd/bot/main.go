@@ -15,9 +15,9 @@ import (
 	"go-bot/internal/config"
 	"go-bot/internal/database"
 
-	"go-bot/internal/service"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/joho/godotenv"
+	"go-bot/internal/service"
 )
 
 func main() {

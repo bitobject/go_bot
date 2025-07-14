@@ -74,7 +74,7 @@ func (c *Client) login(ctx context.Context) error {
 		return err
 	}
 	c.logger.Debug("Login response received", "status", resp.Status, "headers", resp.Header, "body", string(body))
-	
+
 	var loginResp loginResponse
 	err = json.Unmarshal(body, &loginResp)
 	if err != nil {
@@ -121,34 +121,38 @@ func (c *Client) GetClientTraffics(ctx context.Context, email string) ([]ClientT
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		c.logger.Error("Failed to execute request to X-UI", "error", err, "email", email)
 		return nil, fmt.Errorf("failed to execute request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("bad status code: %d", resp.StatusCode)
-	}
-
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		c.logger.Error("Failed to read response body from X-UI", "error", err, "email", email, "status", resp.Status)
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	c.logger.Debug("X-UI API response", "email", email, "body", string(body))
+	c.logger.Debug("X-UI API response", "email", email, "status", resp.Status, "body", string(body))
+
+	if resp.StatusCode != http.StatusOK {
+		c.logger.Error("X-UI API returned non-OK status", "email", email, "status_code", resp.StatusCode, "body", string(body))
+		return nil, fmt.Errorf("bad status code: %d, body: %s", resp.StatusCode, string(body))
+	}
 
 	if len(body) == 0 {
 		return nil, errors.New("API returned an empty response body, check credentials or User-Agent header")
 	}
 
-	type apiResponse struct {
+	type APIResponse struct {
 		Success bool            `json:"success"`
 		Msg     string          `json:"msg"`
 		Obj     json.RawMessage `json:"obj"`
 	}
 
-	var apiResp apiResponse
+	var apiResp APIResponse
 	if err := json.Unmarshal(body, &apiResp); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+		c.logger.Error("Failed to unmarshal X-UI API response", "error", err, "email", email, "body", string(body))
+		return nil, fmt.Errorf("failed to unmarshal API response: %w", err)
 	}
 
 	if !apiResp.Success {

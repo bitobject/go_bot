@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"log"
-	"strings"
 	"sync"
 
 	"github.com/go-playground/validator/v10"
@@ -45,67 +44,80 @@ type Config struct {
 var (
 	once   sync.Once
 	config *Config
+	v      = viper.New()
 )
 
-// Get возвращает синглтон-экземпляр конфигурации.
-// При первом вызове он загружает и валидирует конфигурацию.
-// Если загрузка или валидация не удаются, функция паникует,
-// так как приложение не может работать без корректной конфигурации.
+// Get возвращает синглтон-экземпляр конфигурации, загружая ее из стандартных путей.
 func Get() *Config {
 	once.Do(func() {
 		var err error
-		config, err = loadConfig()
+		// Передаем пустую строку, чтобы loadConfig использовал стандартные пути viper
+		config, err = Load("")
 		if err != nil {
-			log.Fatalf("failed to load configuration: %v", err)
+			log.Fatalf("Failed to load config: %v", err)
 		}
 	})
 	return config
 }
 
-// loadConfig выполняет фактическую загрузку конфигурации.
-func loadConfig() (*Config, error) {
-	viper.SetConfigName("config")
-	viper.SetConfigType("env")
-	viper.AddConfigPath(".")
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	viper.AutomaticEnv()
-
-	bindEnvs()
-
+// Load загружает конфигурацию из указанного файла .env.
+// Если path пуст, viper будет искать .env в текущей директории.
+func Load(path string) (*Config, error) {
 	var cfg Config
-	if err := viper.Unmarshal(&cfg); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
+
+	if path != "" {
+		v.SetConfigFile(path)
+	} else {
+		v.AddConfigPath(".")
+		v.SetConfigFile(".env")
+	}
+
+	v.AutomaticEnv()
+
+	if err := v.ReadInConfig(); err != nil {
+		return nil, fmt.Errorf("error reading config file: %w", err)
+	}
+
+	if err := v.Unmarshal(&cfg); err != nil {
+		return nil, fmt.Errorf("unable to decode into struct: %w", err)
 	}
 
 	validate := validator.New()
 	if err := validate.Struct(&cfg); err != nil {
-		return nil, fmt.Errorf("configuration validation failed: %w", err)
+		return nil, fmt.Errorf("configuration validation error: %w", err)
 	}
 
 	return &cfg, nil
 }
 
+// loadConfig is a placeholder, as its logic has been moved to the new exported Load function.
+func loadConfig() (*Config, error) {
+	// The logic is now in Load(). This function is kept to avoid breaking
+	// the existing singleton structure if it were more complex.
+	return Load("")
+}
+
 func bindEnvs() {
-	viper.BindEnv("APP_ENV", "APP_ENV")
-	viper.BindEnv("HOST", "HOST")
-	viper.BindEnv("PORT", "PORT")
-	viper.BindEnv("LOG_LEVEL", "LOG_LEVEL")
-	viper.BindEnv("TELEGRAM_TOKEN", "TELEGRAM_TOKEN")
-	viper.BindEnv("BASE_URL", "BASE_URL")
-	viper.BindEnv("DB_HOST", "DB_HOST")
-	viper.BindEnv("DB_PORT", "DB_PORT")
-	viper.BindEnv("DB_USER", "DB_USER")
-	viper.BindEnv("DB_PASSWORD", "DB_PASSWORD")
-	viper.BindEnv("DB_NAME", "DB_NAME")
-	viper.BindEnv("JWT_SECRET_KEY", "JWT_SECRET_KEY")
-	viper.BindEnv("JWT_EXPIRES_IN_HOURS", "JWT_EXPIRES_IN_HOURS")
-	viper.BindEnv("RATE_LIMIT_REQUESTS", "RATE_LIMIT_REQUESTS")
-	viper.BindEnv("RATE_LIMIT_WINDOW_MINUTES", "RATE_LIMIT_WINDOW_MINUTES")
-	viper.BindEnv("READ_TIMEOUT", "READ_TIMEOUT")
-	viper.BindEnv("WRITE_TIMEOUT", "WRITE_TIMEOUT")
-	viper.BindEnv("IDLE_TIMEOUT", "IDLE_TIMEOUT")
-	viper.BindEnv("GRACEFUL_SHUTDOWN_TIMEOUT", "GRACEFUL_SHUTDOWN_TIMEOUT")
-	viper.BindEnv("XUI_URL", "XUI_URL")
-	viper.BindEnv("XUI_USERNAME", "XUI_USERNAME")
-	viper.BindEnv("XUI_PASSWORD", "XUI_PASSWORD")
+	v.BindEnv("APP_ENV", "APP_ENV")
+	v.BindEnv("HOST", "HOST")
+	v.BindEnv("PORT", "PORT")
+	v.BindEnv("LOG_LEVEL", "LOG_LEVEL")
+	v.BindEnv("TELEGRAM_TOKEN", "TELEGRAM_TOKEN")
+	v.BindEnv("BASE_URL", "BASE_URL")
+	v.BindEnv("DB_HOST", "DB_HOST")
+	v.BindEnv("DB_PORT", "DB_PORT")
+	v.BindEnv("DB_USER", "DB_USER")
+	v.BindEnv("DB_PASSWORD", "DB_PASSWORD")
+	v.BindEnv("DB_NAME", "DB_NAME")
+	v.BindEnv("JWT_SECRET_KEY", "JWT_SECRET_KEY")
+	v.BindEnv("JWT_EXPIRES_IN_HOURS", "JWT_EXPIRES_IN_HOURS")
+	v.BindEnv("RATE_LIMIT_REQUESTS", "RATE_LIMIT_REQUESTS")
+	v.BindEnv("RATE_LIMIT_WINDOW_MINUTES", "RATE_LIMIT_WINDOW_MINUTES")
+	v.BindEnv("READ_TIMEOUT", "READ_TIMEOUT")
+	v.BindEnv("WRITE_TIMEOUT", "WRITE_TIMEOUT")
+	v.BindEnv("IDLE_TIMEOUT", "IDLE_TIMEOUT")
+	v.BindEnv("GRACEFUL_SHUTDOWN_TIMEOUT", "GRACEFUL_SHUTDOWN_TIMEOUT")
+	v.BindEnv("XUI_URL", "XUI_URL")
+	v.BindEnv("XUI_USERNAME", "XUI_USERNAME")
+	v.BindEnv("XUI_PASSWORD", "XUI_PASSWORD")
 }
