@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 
 	"github.com/go-playground/validator/v10"
@@ -73,6 +74,7 @@ func Load(path string) (*Config, error) {
 	}
 
 	v.AutomaticEnv()
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
 	if err := v.ReadInConfig(); err != nil {
 		// Если файл конфигурации не найден, это не является ошибкой,
