@@ -22,6 +22,15 @@ set -e;
 echo "- Ensuring Nginx directories exist...";
 sudo mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled /etc/nginx/conf.d;
 
+echo "- Preparing main Nginx config...";
+MAIN_NGINX_CONF=/etc/nginx/nginx.conf;
+if [ -f "$$MAIN_NGINX_CONF" ]; then
+    echo "  -> Backing up existing main Nginx config to $$MAIN_NGINX_CONF.bak";
+    sudo cp "$$MAIN_NGINX_CONF" "$$MAIN_NGINX_CONF.bak";
+fi;
+sudo mv /tmp/nginx.conf "$$MAIN_NGINX_CONF";
+
+
 echo "- Preparing upstream config...";
 UPSTREAM_CONF=/etc/nginx/conf.d/go_app.conf;
 if [ -f "$$UPSTREAM_CONF" ]; then
@@ -31,7 +40,7 @@ fi;
 sudo mv /tmp/go_app_upstream.conf "$$UPSTREAM_CONF";
 
 echo "- Preparing site config...";
-SITE_CONF=/etc/nginx/sites-available/$(DOMAIN_NAME);
+SITE_CONF=/etc/nginx/sites-available/$(DOMAIN_NAME).conf;
 if [ -f "$$SITE_CONF" ]; then
     echo "  -> Backing up existing site config to $$SITE_CONF.bak";
     sudo cp "$$SITE_CONF" "$$SITE_CONF.bak";
@@ -39,7 +48,7 @@ fi;
 sudo mv "/tmp/$(DOMAIN_NAME).conf" "$$SITE_CONF";
 
 echo "- Enabling site...";
-sudo ln -sf "$$SITE_CONF" "/etc/nginx/sites-enabled/$(DOMAIN_NAME)";
+sudo ln -sf "$$SITE_CONF" "/etc/nginx/sites-enabled/$(DOMAIN_NAME).conf";
 
 echo "- Disabling default Nginx config (if it exists)...";
 sudo rm -f /etc/nginx/sites-enabled/default;
@@ -54,7 +63,7 @@ echo "- Checking Nginx status...";
 sudo systemctl status nginx --no-pager;
 endef
 
-.PHONY: help deploy-nginx clean update-nginx check-nginx-config check-ssl-certs check-nginx-status patch-nginx-conf
+.PHONY: help deploy-nginx clean update-nginx check-nginx-config check-ssl-certs check-nginx-status check-firewall view-nginx-config reset-firewall
 
 help:
 	@echo "Usage: make [target]"
@@ -63,12 +72,14 @@ help:
 	@echo "  deploy-nginx       Prepares, delivers, and enables the Nginx config on the remote server."
 	@echo "  update-nginx       Updates Nginx on the remote server to the latest version."
 	@echo "  clean              Remove temporary and leftover files."
-	@echo "  patch-nginx-conf   Ensures nginx.conf includes sites-enabled directory."
 	@echo "  check-nginx-config Check full Nginx configuration on the remote server."
 	@echo "  check-ssl-certs    Check for SSL certs on the remote server."
-	@echo "  check-nginx-status Check Nginx service status on the remote server."
+	@echo "  check-nginx-status Check Nginx service status and listening ports on the remote server."
+	@echo "  check-firewall     Check firewall status on the remote server."
+	@echo "  view-nginx-config  View main and site Nginx configs on the remote server."
+	@echo "  reset-firewall     Resets iptables and re-applies UFW rules on the remote server."
 
-deploy-nginx: clean patch-nginx-conf
+deploy-nginx: clean
 	@echo "🚀 Starting native Nginx deployment to $(SSH_HOST)..."
 	@if [ -z "$(DOMAIN_NAME)" ]; then \
 		echo "Error: DOMAIN_NAME is not set. Please set it in deploy/.env"; \
@@ -82,9 +93,15 @@ deploy-nginx: clean patch-nginx-conf
 	@echo "2. Delivering config files to $(SSH_HOST)..."
 	@scp "$(TMP_UPSTREAM_CONFIG)" "$(SSH_USER)@$(SSH_HOST):/tmp/go_app_upstream.conf"
 	@scp "$(TMP_SITE_CONFIG)" "$(SSH_USER)@$(SSH_HOST):/tmp/$(DOMAIN_NAME).conf"
+	@echo "  -> Copying main nginx.conf..."
+	@scp "../nginx/nginx.conf" "$(SSH_USER)@$(SSH_HOST):/tmp/nginx.conf"
 	# Step 3: Execute remote commands
 	@echo "3. Configuring Nginx on $(SSH_HOST)..."
-	@ssh "$(SSH_USER)@$(SSH_HOST)" 'bash -c "$$DEPLOY_SCRIPT"'
+	@echo "$$DEPLOY_SCRIPT" > deploy_script.sh
+	@chmod +x deploy_script.sh
+	@scp deploy_script.sh "$(SSH_USER)@$(SSH_HOST):/tmp/deploy_script.sh"
+	@ssh "$(SSH_USER)@$(SSH_HOST)" "sudo /tmp/deploy_script.sh && rm /tmp/deploy_script.sh"
+	@rm deploy_script.sh
 	# Step 4: Clean up local temporary files
 	@echo "4. Cleaning up local temporary files..."
 	@rm -f "$(TMP_UPSTREAM_CONFIG)" "$(TMP_SITE_CONFIG)"
@@ -138,26 +155,44 @@ check-ssl-certs:
 	@echo "🔍 Checking for SSL certs in /etc/letsencrypt/live/$(DOMAIN_NAME) on $(SSH_HOST)..."
 	@ssh "$(SSH_USER)@$(SSH_HOST)" "sudo ls -l /etc/letsencrypt/live/$(DOMAIN_NAME)"
 
-check-nginx-status:
-	@echo "🔍 Checking Nginx service status on $(SSH_HOST)..."
-	@ssh "$(SSH_USER)@$(SSH_HOST)" "sudo systemctl status nginx --no-pager"
+check-firewall:
+	@echo "🔥 Checking firewall status on $(SSH_HOST)..."
+	@ssh "$(SSH_USER)@$(SSH_HOST)" 'sudo ufw status verbose'
 
-patch-nginx-conf:
-	@echo "🔧 Preparing Nginx patch script..."
-	@rm -f ./patch_nginx.sh
-	@echo '#!/bin/bash' > ./patch_nginx.sh
-	@echo 'set -e' >> ./patch_nginx.sh
-	@echo 'CONF_FILE=/etc/nginx/nginx.conf' >> ./patch_nginx.sh
-	@echo 'INCLUDE_LINE="include /etc/nginx/sites-enabled/*;"' >> ./patch_nginx.sh
-	@echo 'if ! sudo grep -qF "$$INCLUDE_LINE" "$$CONF_FILE"; then' >> ./patch_nginx.sh
-	@echo '    echo "   -> Patching $$CONF_FILE..."' >> ./patch_nginx.sh
-	@echo '    sudo sed -i "/include \/etc\/nginx\/conf.d\/\*\.conf;/a \    $$INCLUDE_LINE" "$$CONF_FILE"' >> ./patch_nginx.sh
-	@echo '    echo "   -> Patched successfully."' >> ./patch_nginx.sh
-	@echo 'else' >> ./patch_nginx.sh
-	@echo '    echo "   -> Already patched. Skipping."' >> ./patch_nginx.sh
-	@echo 'fi' >> ./patch_nginx.sh
-	@chmod +x ./patch_nginx.sh
-	@echo "🚀 Delivering and executing Nginx patch script on $(SSH_HOST)..."
-	@scp ./patch_nginx.sh "$(SSH_USER)@$(SSH_HOST):/tmp/patch_nginx.sh"
-	@ssh "$(SSH_USER)@$(SSH_HOST)" "sudo /tmp/patch_nginx.sh && rm /tmp/patch_nginx.sh"
-	@rm ./patch_nginx.sh
+view-nginx-config:
+	@echo "📄 Viewing main Nginx config on $(SSH_HOST)..."
+	@ssh "$(SSH_USER)@$(SSH_HOST)" 'sudo cat /etc/nginx/nginx.conf'
+	@echo "\n📄 Viewing site config for $(DOMAIN_NAME) on $(SSH_HOST)..."
+	@ssh "$(SSH_USER)@$(SSH_HOST)" 'sudo cat /etc/nginx/sites-available/$(DOMAIN_NAME)'
+
+reset-firewall:
+	@echo "🔥 Resetting firewall (iptables) and re-applying UFW rules on $(SSH_HOST)..."
+	@ssh "$(SSH_USER)@$(SSH_HOST)" '		\
+		sudo ufw disable && \
+		sudo iptables -F && \
+		sudo iptables -X && \
+		sudo iptables -t nat -F && \
+		sudo iptables -t nat -X && \
+		sudo iptables -t mangle -F && \
+		sudo iptables -t mangle -X && \
+		sudo iptables -P INPUT ACCEPT && \
+		sudo iptables -P FORWARD ACCEPT && \
+		sudo iptables -P OUTPUT ACCEPT && \
+		echo "y" | sudo ufw enable && \
+		sudo ufw allow '\''$(SSH_PORT)'\''/tcp && \
+		sudo ufw allow 80/tcp && \
+		sudo ufw allow 443/tcp && \
+		sudo systemctl restart nginx && \
+		echo "\n✅ Nginx restarted. Final firewall status:" && \
+		sudo ufw status verbose \
+	'
+
+check-nginx-status:
+	@echo "🕵️ Checking Nginx service status and listening ports on $(SSH_HOST)..."
+	@ssh "$(SSH_USER)@$(SSH_HOST)" ' \
+		echo "--- Nginx Service Status ---"; \
+		sudo systemctl status nginx --no-pager -l; \
+		echo "\n--- Listening on Ports 80/443 ---"; \
+		sudo ss -tlpn "(sport = :80 or sport = :443)" \
+	'
+
