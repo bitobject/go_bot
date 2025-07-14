@@ -77,12 +77,11 @@ func Load(path string) (*Config, error) {
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
 	if err := v.ReadInConfig(); err != nil {
-		// Если файл конфигурации не найден, это не является ошибкой,
-		// так как мы можем полагаться на переменные окружения.
-		// Ошибкой это будет только в том случае, если файл есть, но прочитать его не удалось.
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			// Ошибка чтения файла конфигурации, но это не ошибка "файл не найден"
 			return nil, fmt.Errorf("error reading config file: %w", err)
 		}
+		// Файл .env не найден, это нормально, продолжаем, полагаясь на переменные окружения.
 	}
 
 	if err := v.Unmarshal(&cfg); err != nil {
