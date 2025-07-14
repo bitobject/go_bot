@@ -75,7 +75,12 @@ func Load(path string) (*Config, error) {
 	v.AutomaticEnv()
 
 	if err := v.ReadInConfig(); err != nil {
-		return nil, fmt.Errorf("error reading config file: %w", err)
+		// Если файл конфигурации не найден, это не является ошибкой,
+		// так как мы можем полагаться на переменные окружения.
+		// Ошибкой это будет только в том случае, если файл есть, но прочитать его не удалось.
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			return nil, fmt.Errorf("error reading config file: %w", err)
+		}
 	}
 
 	if err := v.Unmarshal(&cfg); err != nil {
