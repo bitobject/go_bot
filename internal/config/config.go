@@ -45,46 +45,46 @@ type Config struct {
 var (
 	once   sync.Once
 	config *Config
-	v      = viper.New()
 )
 
-// Get возвращает синглтон-экземпляр конфигурации, загружая ее из стандартных путей.
+// Get возвращает синглтон-экземпляр конфигурации.
+// При первом вызове загружает конфигурацию и кэширует ее.
 func Get() *Config {
 	once.Do(func() {
 		var err error
-		// Передаем пустую строку, чтобы loadConfig использовал стандартные пути viper
-		config, err = Load("")
+		// Для основного приложения всегда ищем .env в текущей директории.
+		config, err = Load(".")
 		if err != nil {
-			log.Fatalf("Failed to load config: %v", err)
+			log.Fatalf("Error loading config: %v", err)
 		}
 	})
 	return config
 }
 
-// Load загружает конфигурацию из указанного файла .env.
-// Если path пуст, viper будет искать .env в текущей директории.
+// Load загружает конфигурацию из указанного пути.
+// Эта функция является публичной и может использоваться в тестах для загрузки кастомных конфигов.
 func Load(path string) (*Config, error) {
-	var cfg Config
+	vp := viper.New()
 
-	if path != "" {
-		v.SetConfigFile(path)
-	} else {
-		v.AddConfigPath(".")
-		v.SetConfigFile(".env")
-	}
+	// Настраиваем чтение из переменных окружения (высший приоритет)
+	vp.AutomaticEnv()
+	vp.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
-	v.AutomaticEnv()
-	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	// Настраиваем чтение из файла (низший приоритет)
+	vp.AddConfigPath(path)
+	vp.SetConfigFile(".env")
 
-	if err := v.ReadInConfig(); err != nil {
+	// Пытаемся прочитать .env файл.
+	if err := vp.ReadInConfig(); err != nil {
+		// Если ошибка НЕ "файл не найден", то это реальная проблема.
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			// Ошибка чтения файла конфигурации, но это не ошибка "файл не найден"
 			return nil, fmt.Errorf("error reading config file: %w", err)
 		}
-		// Файл .env не найден, это нормально, продолжаем, полагаясь на переменные окружения.
+		// Если файл просто не найден, это нормально. Переменные окружения будут использованы.
 	}
 
-	if err := v.Unmarshal(&cfg); err != nil {
+	var cfg Config
+	if err := vp.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("unable to decode into struct: %w", err)
 	}
 
@@ -94,36 +94,4 @@ func Load(path string) (*Config, error) {
 	}
 
 	return &cfg, nil
-}
-
-// loadConfig is a placeholder, as its logic has been moved to the new exported Load function.
-func loadConfig() (*Config, error) {
-	// The logic is now in Load(). This function is kept to avoid breaking
-	// the existing singleton structure if it were more complex.
-	return Load("")
-}
-
-func bindEnvs() {
-	v.BindEnv("APP_ENV", "APP_ENV")
-	v.BindEnv("HOST", "HOST")
-	v.BindEnv("PORT", "PORT")
-	v.BindEnv("LOG_LEVEL", "LOG_LEVEL")
-	v.BindEnv("TELEGRAM_TOKEN", "TELEGRAM_TOKEN")
-	v.BindEnv("BASE_URL", "BASE_URL")
-	v.BindEnv("DB_HOST", "DB_HOST")
-	v.BindEnv("DB_PORT", "DB_PORT")
-	v.BindEnv("DB_USER", "DB_USER")
-	v.BindEnv("DB_PASSWORD", "DB_PASSWORD")
-	v.BindEnv("DB_NAME", "DB_NAME")
-	v.BindEnv("JWT_SECRET_KEY", "JWT_SECRET_KEY")
-	v.BindEnv("JWT_EXPIRES_IN_HOURS", "JWT_EXPIRES_IN_HOURS")
-	v.BindEnv("RATE_LIMIT_REQUESTS", "RATE_LIMIT_REQUESTS")
-	v.BindEnv("RATE_LIMIT_WINDOW_MINUTES", "RATE_LIMIT_WINDOW_MINUTES")
-	v.BindEnv("READ_TIMEOUT", "READ_TIMEOUT")
-	v.BindEnv("WRITE_TIMEOUT", "WRITE_TIMEOUT")
-	v.BindEnv("IDLE_TIMEOUT", "IDLE_TIMEOUT")
-	v.BindEnv("GRACEFUL_SHUTDOWN_TIMEOUT", "GRACEFUL_SHUTDOWN_TIMEOUT")
-	v.BindEnv("XUI_URL", "XUI_URL")
-	v.BindEnv("XUI_USERNAME", "XUI_USERNAME")
-	v.BindEnv("XUI_PASSWORD", "XUI_PASSWORD")
 }
