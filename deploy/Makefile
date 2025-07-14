@@ -58,9 +58,14 @@ rebuild: ## Пересобрать образы сервисов без их з�
 	@echo "🛠️ Rebuilding images (without starting)..."
 	@$(COMPOSE_CMD) build
 
-rebuild-app: ## Пересобрать образ только для сервиса 'app'
-	@echo "🛠️  Rebuilding app service image..."
-	@$(COMPOSE_CMD) build app
+rebuild-app: ## Пересобрать образ 'app', сохранить предыдущую версию (без запуска)
+	@echo "Rotating images: current -> previous..."
+	@if [ "$(shell docker images -q $(IMAGE_NAME):$(CURRENT_TAG))" ]; then \
+		docker rmi $(IMAGE_NAME):$(PREVIOUS_TAG) 2>/dev/null || true; \
+		docker tag $(IMAGE_NAME):$(CURRENT_TAG) $(IMAGE_NAME):$(PREVIOUS_TAG); \
+	fi
+	@echo "Building new 'current' image for app service (without starting)..."
+	@IMAGE_TAG=$(CURRENT_TAG) $(COMPOSE_CMD) build app
 
 rebuild-nginx: ## Пересобрать образ только для сервиса 'nginx'
 	@echo "🛠️  Rebuilding nginx service image..."
