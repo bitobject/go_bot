@@ -21,6 +21,7 @@ services:
 
   # Go Telegram Bot Application
   app:
+    image: go-bot:${IMAGE_TAG:-current}
     build:
       context: ..
       dockerfile: deploy/Dockerfile

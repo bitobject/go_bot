@@ -1,4 +1,9 @@
-.PHONY: help up down logs build test clean
+.PHONY: help up up_prev start down logs build test clean
+
+# Docker image configuration
+IMAGE_NAME = go-bot
+CURRENT_TAG = current
+PREVIOUS_TAG = previous
 
 # Load environment variables from .env file and export them
 include .env
@@ -20,9 +25,26 @@ help: ## Показывает эту справку
 COMPOSE_FILE = docker-compose.yml
 COMPOSE_CMD = docker compose -f $(COMPOSE_FILE) --env-file .env
 
-up: ## Запустить все сервисы в фоновом режиме
+up: ## (Пере)собрать образ, сохранить предыдущую версию и запустить сервисы
+	@echo "Rotating images: current -> previous..."
+	@if [ "$(shell docker images -q $(IMAGE_NAME):$(CURRENT_TAG))" ]; then \
+		docker rmi $(IMAGE_NAME):$(PREVIOUS_TAG) 2>/dev/null || true; \
+		docker tag $(IMAGE_NAME):$(CURRENT_TAG) $(IMAGE_NAME):$(PREVIOUS_TAG); \
+	fi
+	@echo "Building and starting new 'current' image..."
+	@IMAGE_TAG=$(CURRENT_TAG) $(COMPOSE_CMD) up -d --build
+
+up_prev: ## Запустить сервисы с предыдущей версией образа для отката
+	@echo "🚀 Starting services with PREVIOUS image version..."
+	@if ! [ "$(shell docker images -q $(IMAGE_NAME):$(PREVIOUS_TAG))" ]; then \
+		echo "Error: No previous image to roll back to."; \
+		exit 1; \
+	fi
+	@IMAGE_TAG=$(PREVIOUS_TAG) $(COMPOSE_CMD) up -d
+
+start: ## Запустить все сервисы в фоновом режиме (без пересборки)
 	@echo "🚀 Starting all services..."
-	@$(COMPOSE_CMD) up -d
+	@IMAGE_TAG=$(CURRENT_TAG) $(COMPOSE_CMD) up -d
 
 down: ## Остановить все сервисы
 	@echo "🛑 Stopping all services..."
