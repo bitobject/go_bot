@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"go-bot/internal/config"
@@ -31,5 +32,15 @@ func NewXUIService(cfg *config.Config, logger *slog.Logger) *XUIService {
 
 // GetClientTraffics retrieves traffic data for a specific client by email.
 func (s *XUIService) GetClientTraffics(ctx context.Context, email string) ([]xui.ClientTraffic, error) {
-	return s.client.GetClientTraffics(ctx, email)
+	traffics, err := s.client.GetClientTraffics(ctx, email)
+	if err != nil {
+		wrappedErr := fmt.Errorf("XUIService error: %w", err)
+		s.logger.Error(
+			"failed to get client traffics from X-UI API",
+			"error", wrappedErr,
+			"email", email,
+		)
+		return nil, wrappedErr
+	}
+	return traffics, nil
 }
