@@ -29,8 +29,6 @@ services:
       dockerfile: deploy/Dockerfile
     container_name: ${APP_CONTAINER_NAME}
     restart: unless-stopped
-    env_file:
-      - .env
     ports:
       - "127.0.0.1:8080:8080" # Expose app port only to the host for Nginx
     depends_on:
