@@ -23,7 +23,7 @@ help: ## Показывает эту справку
 # ===================================================================================
 
 COMPOSE_FILE = docker-compose.yml
-COMPOSE_CMD = docker compose -f $(COMPOSE_FILE) --env-file .env
+COMPOSE_CMD = docker compose -f $(COMPOSE_FILE)
 
 up: ## (Пере)собрать образ, сохранить предыдущую версию и запустить сервисы
 	@echo "Rotating images: current -> previous..."

@@ -51,6 +51,27 @@ func Get() *Config {
 	return cfg
 }
 
+func bindEnvs() {
+	viper.BindEnv("HOST")
+	viper.BindEnv("PORT")
+	viper.BindEnv("LOG_LEVEL")
+	viper.BindEnv("TELEGRAM_TOKEN")
+	viper.BindEnv("BASE_URL")
+	viper.BindEnv("DB_HOST")
+	viper.BindEnv("DB_PORT")
+	viper.BindEnv("DB_USER")
+	viper.BindEnv("DB_PASSWORD")
+	viper.BindEnv("DB_NAME")
+	viper.BindEnv("RATE_LIMIT_REQUESTS")
+	viper.BindEnv("RATE_LIMIT_WINDOW_MINUTES")
+	viper.BindEnv("JWT_SECRET_KEY")
+	viper.BindEnv("JWT_EXPIRES_IN_HOURS")
+	viper.BindEnv("XUI_URL")
+	viper.BindEnv("XUI_USERNAME")
+	viper.BindEnv("XUI_PASSWORD")
+	viper.BindEnv("XUI_SERVICE")
+}
+
 func Load() (*Config, error) {
 	viper.SetDefault("HOST", "0.0.0.0")
 	viper.SetDefault("PORT", "8080")
@@ -60,6 +81,8 @@ func Load() (*Config, error) {
 	viper.AddConfigPath(".")
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
+
+	bindEnvs()
 
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
