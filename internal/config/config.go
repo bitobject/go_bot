@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"sync"
 
@@ -76,8 +77,8 @@ func Load(path string) (*Config, error) {
 
 	// Пытаемся прочитать .env файл.
 	if err := vp.ReadInConfig(); err != nil {
-		// Если ошибка НЕ "файл не найден", то это реальная проблема.
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+		// Мы игнорируем только ошибки 'файл не найден'. Все остальные ошибки (например, проблемы с правами доступа) являются критическими.
+		if !os.IsNotExist(err) {
 			return nil, fmt.Errorf("error reading config file: %w", err)
 		}
 		// Если файл просто не найден, это нормально. Переменные окружения будут использованы.
