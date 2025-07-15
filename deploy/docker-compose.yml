@@ -23,7 +23,7 @@ services:
   app:
     image: go-bot:${IMAGE_TAG:-current}
     env_file:
-      - ../.env
+      - .env
     build:
       context: ..
       dockerfile: deploy/Dockerfile
