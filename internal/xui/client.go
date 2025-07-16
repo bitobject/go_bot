@@ -57,7 +57,11 @@ func NewClient(url, username, password string, logger *slog.Logger) *Client {
 func (c *Client) login(ctx context.Context) error {
 	loginReq := url.Values{"username": {c.username}, "password": {c.password}}
 	b := strings.NewReader(loginReq.Encode())
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.url+"/login", b)
+	loginURL, err := url.JoinPath(c.url, "login")
+	if err != nil {
+		return fmt.Errorf("failed to create login URL: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, loginURL, b)
 	if err != nil {
 		return err
 	}
@@ -111,7 +115,10 @@ func (c *Client) GetClientTraffics(ctx context.Context, email string) ([]ClientT
 		return nil, err
 	}
 
-	apiURL := fmt.Sprintf("%s/panel/api/inbounds/getClientTraffics/%s", c.url, email)
+	apiURL, err := url.JoinPath(c.url, "/panel/api/inbounds/getClientTraffics/", email)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create api URL: %w", err)
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
