@@ -32,7 +32,7 @@ up: ## (Пере)собрать образ, сохранить предыдущ�
 		docker tag $(IMAGE_NAME):$(CURRENT_TAG) $(IMAGE_NAME):$(PREVIOUS_TAG); \
 	fi
 	@echo "Building and starting new 'current' image..."
-	@IMAGE_TAG=$(CURRENT_TAG) $(COMPOSE_CMD) up -d --build
+	@IMAGE_TAG=$(CURRENT_TAG) $(COMPOSE_CMD) up -d 
 
 up_prev: ## Запустить сервисы с предыдущей версией образа для отката
 	@echo "🚀 Starting services with PREVIOUS image version..."
