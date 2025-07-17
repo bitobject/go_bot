@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -45,8 +46,22 @@ type ClientTraffic struct {
 
 // NewClient creates a new 3x-ui API client.
 func NewClient(url, username, password string, logger *slog.Logger) *Client {
+	// A more robust HTTP client with granular timeouts
+	transport := &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second, // Connection timeout
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		TLSHandshakeTimeout:   10 * time.Second, // TLS handshake timeout
+		ResponseHeaderTimeout: 10 * time.Second, // Timeout for receiving response headers
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+
 	return &Client{
-		httpClient: &http.Client{Timeout: 10 * time.Second},
+		// We remove the global Timeout from the client itself,
+		// as the transport-level timeouts give us more fine-grained control.
+		// The total request time is now governed by the context passed to the request.
+		httpClient: &http.Client{Transport: transport},
 		url:        url,
 		username:   username,
 		password:   password,
