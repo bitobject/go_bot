@@ -28,12 +28,13 @@ RUN CGO_ENABLED=0 go build -ldflags="-w -s" -o /go-bot ./cmd/bot
 FROM alpine:latest
 
 # Устанавливаем корневые сертификаты, необходимые для HTTPS-запросов
-RUN apk --no-cache add ca-certificates
+# Устанавливаем корневые сертификаты и curl для отладки
+RUN apk --no-cache add ca-certificates curl
 
 WORKDIR /app
 
 # Копируем скомпилированный бинарник из стадии сборки
-COPY --from=builder /app/go-bot .
+COPY --from=builder /go-bot .
 
 # Этот пользователь и группа создаются в образе Alpine по умолчанию
 # Запуск от имени непривилегированного пользователя повышает безопасность

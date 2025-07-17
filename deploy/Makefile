@@ -25,14 +25,7 @@ help: ## Показывает эту справку
 COMPOSE_FILE = docker-compose.yml
 COMPOSE_CMD = docker compose -f $(COMPOSE_FILE) --env-file .env
 
-up: ## (Пере)собрать образ, сохранить предыдущую версию и запустить сервисы
-	@echo "Rotating images: current -> previous..."
-	@if [ "$(shell docker images -q $(IMAGE_NAME):$(CURRENT_TAG))" ]; then \
-		docker rmi $(IMAGE_NAME):$(PREVIOUS_TAG) 2>/dev/null || true; \
-		docker tag $(IMAGE_NAME):$(CURRENT_TAG) $(IMAGE_NAME):$(PREVIOUS_TAG); \
-	fi
-	@echo "Building and starting new 'current' image..."
-	@IMAGE_TAG=$(CURRENT_TAG) $(COMPOSE_CMD) up -d 
+up: rebuild-app start ## Пересобрать образ 'app' и запустить все сервисы 
 
 up_prev: ## Запустить сервисы с предыдущей версией образа для отката
 	@echo "🚀 Starting services with PREVIOUS image version..."
